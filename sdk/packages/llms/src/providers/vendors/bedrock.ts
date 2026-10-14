@@ -1,5 +1,5 @@
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
-import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
+import { fromIni, fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../../catalog/catalog.generated-access";
 import type { ProviderFactoryResult } from "./types";
@@ -274,8 +274,13 @@ function resolveCredentialProvider(
 
 	if (options.authentication === "profile" || options.hasProfile) {
 		const profile = readOptionalString(config.options?.profile);
-		return fromNodeProviderChain({
-			ignoreCache: true,
+		// Explicit profile auth must resolve that profile directly. The general
+		// provider chain checks environment credentials first, which can silently
+		// override a selected SSO/credential_process profile and produce confusing
+		// Bedrock session-token failures. fromIni supports SSO, role profiles, and
+		// credential_process while preserving AWS_PROFILE/default fallback when no
+		// profile name was explicitly configured.
+		return fromIni({
 			...(profile ? { profile } : {}),
 			...(region ? { clientConfig: { region } } : {}),
 		});

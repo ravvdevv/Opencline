@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBedrockProviderModule, resolveBedrockModelId } from "./bedrock";
 
 const createAmazonBedrockMock = vi.hoisted(() => vi.fn());
+const fromIniMock = vi.hoisted(() => vi.fn());
 const fromNodeProviderChainMock = vi.hoisted(() => vi.fn());
 const bedrockModelMock = vi.hoisted(() =>
 	vi.fn((modelId: string) => ({ modelId })),
@@ -13,6 +14,7 @@ vi.mock("@ai-sdk/amazon-bedrock", () => ({
 }));
 
 vi.mock("@aws-sdk/credential-providers", () => ({
+	fromIni: fromIniMock,
 	fromNodeProviderChain: fromNodeProviderChainMock,
 }));
 
@@ -23,6 +25,12 @@ describe("createBedrockProviderModule", () => {
 		process.env = { ...ORIGINAL_ENV };
 		createAmazonBedrockMock.mockReset();
 		createAmazonBedrockMock.mockReturnValue(bedrockModelMock);
+		fromIniMock.mockReset();
+		fromIniMock.mockReturnValue(async () => ({
+			accessKeyId: "profile-access-key",
+			secretAccessKey: "profile-secret-key",
+			sessionToken: "profile-session-token",
+		}));
 		fromNodeProviderChainMock.mockReset();
 		fromNodeProviderChainMock.mockReturnValue(async () => ({
 			accessKeyId: "chain-access-key",
@@ -102,7 +110,7 @@ describe("createBedrockProviderModule", () => {
 		expect(fromNodeProviderChainMock).not.toHaveBeenCalled();
 	});
 
-	it("uses AWS profiles through the SDK credential provider chain", async () => {
+	it("uses the selected AWS profile directly for SSO and credential_process auth", async () => {
 		await createBedrockProviderModule(
 			config({
 				options: {
@@ -113,11 +121,11 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		expect(fromNodeProviderChainMock).toHaveBeenCalledWith({
-			ignoreCache: true,
+		expect(fromIniMock).toHaveBeenCalledWith({
 			profile: "dev-profile",
 			clientConfig: { region: "us-east-2" },
 		});
+		expect(fromNodeProviderChainMock).not.toHaveBeenCalled();
 		expect(createAmazonBedrockMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				apiKey: "",
@@ -139,11 +147,11 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		expect(fromNodeProviderChainMock).toHaveBeenCalledWith({
-			ignoreCache: true,
+		expect(fromIniMock).toHaveBeenCalledWith({
 			profile: "default",
 			clientConfig: { region: "us-east-1" },
 		});
+		expect(fromNodeProviderChainMock).not.toHaveBeenCalled();
 		expect(createAmazonBedrockMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				apiKey: "",

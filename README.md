@@ -18,6 +18,10 @@
 
 A personal fork of [Cline](https://github.com/cline/cline), tweaked for my own use cases. Just a fun project, still a work in progress.
 
+## Download a release
+
+Prefer a prebuilt CLI over building from source? Check the [latest OpenCline release](https://github.com/ravvdevv/opencline/releases/latest) for downloadable builds and checksums. Windows x64 release builds can run without a separate Node.js or Bun installation. If no release asset is published yet, use the [CLI guide](apps/cli/README.md) to install from source or follow the release page for future builds.
+
 ## Run locally
 
 ```bash
@@ -25,7 +29,7 @@ bun install
 bun run start
 ```
 
-See the [CLI guide](apps/cli/README.md) for more details.
+See the [CLI guide](apps/cli/README.md) for release installation, local build and install steps, and CLI usage.
 
 ## Credits
 
