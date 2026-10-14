@@ -1,14 +1,21 @@
 # OpenCline CLI
 
+## Download a standalone Windows executable
+
+When a tagged release is published, download `opencline-windows-x64.exe` and its SHA-256 checksum from the [OpenCline Releases page](https://github.com/ravvdevv/opencline/releases). The executable bundles the CLI runtime, so you do not need to install Node.js or Bun to run the released binary. Rename it to `opencline.exe` if you want the shorter command name.
+
 ## Build and install locally on Windows
 
 From the repository root in PowerShell, run:
 
 ```powershell
-.\apps\cli\script\install-opencline.ps1
+bun install
+bun run install:opencline
 ```
 
-This builds the Windows x64 executable, installs it to `%LOCALAPPDATA%\OpenCline\opencline.exe`, and adds that directory to your user `PATH`. Open a new terminal, then run `opencline` to start the interactive CLI, or `opencline --help` to see available commands. The installer requires Bun and uses the already-built SDK packages.
+The installer builds the SDK and Windows x64 CLI, installs it to `%LOCALAPPDATA%\OpenCline\opencline.exe`, and adds that directory to your user `PATH`. It checks for a running OpenCline process before building and verifies the installed executable afterward. If an update fails because another process holds the file, close OpenCline and rerun the installer.
+
+Open a new terminal, then run `opencline` to start the interactive CLI, or `opencline --help` to see available commands.
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/7123f9d1-afeb-48d5-93fa-e750dec0ebba" width="70%" />

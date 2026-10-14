@@ -5,7 +5,6 @@ import {
 import { useTerminalDimensions } from "@opentui/react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import "opentui-spinner/react";
 import {
 	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassLimitDetailMessage,

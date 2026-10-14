@@ -1,4 +1,3 @@
-import "opentui-spinner/react";
 import type { AgentMode, ClineSubscriptionPlan } from "@cline/core";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import {

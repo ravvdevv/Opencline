@@ -1,10 +1,6 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
-// Register OpenTUI's custom spinner element before any TUI screen is rendered.
-// Keep this side-effect import at the entrypoint so registration loads before
-// lazy TUI modules and remains visible in standalone Bun builds.
-import "opentui-spinner/react";
 import {
 	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,
@@ -16,6 +12,8 @@ import {
 	initVcr,
 	setConnectorCliLaunchSpec,
 } from "@cline/shared";
+import { extend } from "@opentui/react";
+import { SpinnerRenderable } from "opentui-spinner";
 import { logCliProcessError } from "./logging/errors";
 import {
 	abortActiveRuntime,
@@ -25,6 +23,9 @@ import {
 import { registerClineClientIdentity } from "./utils/cline-client-identity";
 import { resolveCliLaunchSpec } from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
+
+// Register the spinner directly so standalone bundling retains the custom element.
+extend({ spinner: SpinnerRenderable });
 
 // Initialize VCR before any HTTP requests are made.
 // Set CLINE_VCR=record|playback and CLINE_VCR_CASSETTE=<path> to enable.

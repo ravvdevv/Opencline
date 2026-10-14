@@ -4,7 +4,6 @@ import type {
 	DialogSize,
 	DialogStyle,
 } from "@opentui-ui/dialog/react";
-import "opentui-spinner/react";
 import {
 	type LoadingDialogActions,
 	withShownDialog,

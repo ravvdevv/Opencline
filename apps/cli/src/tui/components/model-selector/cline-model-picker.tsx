@@ -6,7 +6,6 @@ import {
 } from "@cline/core";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import "opentui-spinner/react";
 import { useDialogPalette } from "../../hooks/use-theme";
 import type { DialogPalette } from "../../themes";
 import {

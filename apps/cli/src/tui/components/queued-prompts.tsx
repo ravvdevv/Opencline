@@ -1,4 +1,3 @@
-import "opentui-spinner/react";
 import { useEffect, useState } from "react";
 import { useSession } from "../contexts/session-context";
 import { useTheme } from "../hooks/use-theme";

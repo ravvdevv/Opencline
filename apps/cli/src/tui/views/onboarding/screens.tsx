@@ -1,4 +1,3 @@
-import "opentui-spinner/react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
