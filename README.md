@@ -20,9 +20,11 @@ A personal fork of [Cline](https://github.com/cline/cline), tweaked for my own u
 
 ## Windows: download and run
 
-**Windows users: download the latest release instead of building from source.** Visit [OpenCline Releases](https://github.com/ravvdevv/opencline/releases/latest) and download `opencline-windows-x64.exe` (plus its SHA-256 checksum, when provided). Run the executable from PowerShell or Command Prompt. The standalone build does not require a separate Node.js or Bun installation.
+1. Open the [latest OpenCline release](https://github.com/ravvdevv/opencline/releases/latest).
+2. Download `opencline-windows-x64.exe` if it is listed.
+3. Double-click the downloaded file to run it. You don't need to install Node.js or Bun separately.
 
-If the release page does not contain a downloadable Windows executable yet, follow the [CLI guide](apps/cli/README.md) to install it from source. See that guide for the optional PowerShell installer and checksum verification details.
+**Don't see the `.exe` file?** It hasn't been included in the release yet. Follow the [CLI guide](apps/cli/README.md) to install OpenCline another way.
 
 ## Run locally
 
