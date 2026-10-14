@@ -2,7 +2,15 @@
 
 ## Download a standalone Windows executable
 
-When a tagged release is published, download `opencline-windows-x64.exe` and its SHA-256 checksum from the [OpenCline Releases page](https://github.com/ravvdevv/opencline/releases). The executable bundles the CLI runtime, so you do not need to install Node.js or Bun to run the released binary. Rename it to `opencline.exe` if you want the shorter command name.
+When a tagged release is published, download `opencline-windows-x64.exe` and its SHA-256 checksum from the [OpenCline Releases page](https://github.com/ravvdevv/opencline/releases). The executable bundles the CLI runtime, so you do not need to install Node.js or Bun to run the released binary.
+
+To install or update the latest release from PowerShell without cloning the repository, run:
+
+```powershell
+irm https://raw.githubusercontent.com/ravvdevv/opencline/main/apps/cli/script/install-opencline-release.ps1 | iex
+```
+
+The release installer verifies the downloaded executable against the published SHA-256 checksum before installing it to `%LOCALAPPDATA%\OpenCline\opencline.exe`. It adds the install directory to your user `PATH` and checks the installed CLI version. If you prefer to inspect the script first, download it from the repository and run it locally.
 
 ## Build and install locally on Windows
 
