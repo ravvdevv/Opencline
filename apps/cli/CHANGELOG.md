@@ -1,5 +1,11 @@
 # Cline CLI Changelog
 
+## 3.0.72
+
+- Improves standalone Windows release packaging and spinner registration for compiled CLI builds
+- Adds a verified PowerShell installer for downloading and updating the latest Windows x64 release
+- Release workflow now runs CLI unit tests and checks the packaged `doctor` command before publishing
+
 ## 3.0.71
 
 - Plugins now load inside the hub instead of a separate node or bun process, so the CLI no longer needs a JavaScript runtime on your PATH to run plugins. A plugin that fails to load no longer silently loses its tools: Cline prints a warning naming the plugin and the error, `cline config tools --json` lists it as a `plugin_failure` entry, and the new `cline hub plugins` shows each plugin's status and last error (`--reload <plugin>` re-imports one without restarting the hub). Set `CLINE_PLUGIN_MODE=sandbox` to keep the old subprocess behavior
