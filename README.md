@@ -18,9 +18,11 @@
 
 A personal fork of [Cline](https://github.com/cline/cline), tweaked for my own use cases. Just a fun project, still a work in progress.
 
-## Download a release
+## Windows: download and run
 
-Prefer a prebuilt CLI over building from source? Check the [latest OpenCline release](https://github.com/ravvdevv/opencline/releases/latest) for downloadable builds and checksums. Windows x64 release builds can run without a separate Node.js or Bun installation. If no release asset is published yet, use the [CLI guide](apps/cli/README.md) to install from source or follow the release page for future builds.
+**Windows users: download the latest release instead of building from source.** Visit [OpenCline Releases](https://github.com/ravvdevv/opencline/releases/latest) and download `opencline-windows-x64.exe` (plus its SHA-256 checksum, when provided). Run the executable from PowerShell or Command Prompt. The standalone build does not require a separate Node.js or Bun installation.
+
+If the release page does not contain a downloadable Windows executable yet, follow the [CLI guide](apps/cli/README.md) to install it from source. See that guide for the optional PowerShell installer and checksum verification details.
 
 ## Run locally
 
