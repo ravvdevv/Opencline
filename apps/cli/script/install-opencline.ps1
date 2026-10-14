@@ -12,7 +12,7 @@ if (-not (Get-Command bun -ErrorAction SilentlyContinue)) {
 Push-Location $repoRoot
 try {
     Write-Host "Building OpenCline for Windows x64..."
-    & bun run apps/cli/script/build.ts --single --skip-sdk-build
+    & bun run apps/cli/script/build.ts --single
     if ($LASTEXITCODE -ne 0) {
         throw "OpenCline build failed with exit code $LASTEXITCODE"
     }

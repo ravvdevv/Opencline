@@ -1,12 +1,10 @@
 #!/usr/bin/env bun
 
 import { isMainThread } from "node:worker_threads";
-import { registerSpinner } from "opentui-spinner/react";
-
 // Register OpenTUI's custom spinner element before any TUI screen is rendered.
-// Keeping this at the CLI entrypoint also ensures the registration survives the
-// standalone Bun executable build, where lazy module chunks can defer side effects.
-registerSpinner();
+// Keep this side-effect import at the entrypoint so registration loads before
+// lazy TUI modules and remains visible in standalone Bun builds.
+import "opentui-spinner/react";
 import {
 	buildTelemetrySelfcheckReport,
 	claimHubDaemonProcess,

@@ -214,12 +214,11 @@ for (const item of targets) {
 				try {
 					rmSync(smokeHome, { recursive: true, force: true });
 				} catch (error) {
-					// Windows may briefly keep a hub log/database handle open after
-					// the stop command succeeds. Cleanup failure must not invalidate
-					// a binary that passed both runtime smoke tests.
-					const code = (error as NodeJS.ErrnoException).code;
-					if (code !== "EBUSY" && code !== "EPERM") throw error;
-					console.warn(`  Warning: temporary smoke-test files remain at ${smokeHome}`);
+					// Cleanup is best-effort: a temporary-file removal error must not
+					// override a successful build or smoke test.
+					console.warn(
+						`  Warning: could not fully remove temporary smoke-test files at ${smokeHome}: ${String(error)}`,
+					);
 				}
 			}
 		} catch (e) {

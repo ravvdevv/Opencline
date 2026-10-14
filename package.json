@@ -20,6 +20,7 @@
         "build:models": "bun -F @cline/llms generate:models && bun format --write",
         "dev": "bun --conditions=development run build:sdk && bun run cli && bun run cli hub stop",
         "start": "bun run build:sdk && bun run cli",
+        "install:opencline": "powershell -NoProfile -ExecutionPolicy Bypass -File ./apps/cli/script/install-opencline.ps1",
         "cli": "bun --conditions=development --cwd apps/cli dev",
         "code": "bun --conditions=development -F @cline/code dev",
         "clean": "bun run sdk/scripts/clean.ts",
