@@ -10,6 +10,7 @@ import {
 } from "@cline/core";
 import { type AgentMode, buildClineSystemPrompt } from "@cline/shared";
 import { isImagePath, loadImageAsDataUrl } from "../utils/image-attachments";
+import { buildMemoryPromptSection } from "./memory";
 
 export async function resolveSystemPrompt(input: {
 	cwd: string;
@@ -22,7 +23,14 @@ export async function resolveSystemPrompt(input: {
 	// Mode-tag and plan-mode instructions are appended by the shared prompt
 	// builder itself (see MODE_TAG_INSTRUCTIONS / PLAN_MODE_INSTRUCTIONS in
 	// @cline/shared), so only the caller-specific rules are merged here.
-	const rules = mergeRulesForSystemPrompt(undefined, input.rules);
+	const memorySection = buildMemoryPromptSection(input.cwd);
+	const combinedRules = [input.rules, memorySection]
+		.filter(Boolean)
+		.join("\n\n");
+	const rules = mergeRulesForSystemPrompt(
+		undefined,
+		combinedRules || undefined,
+	);
 	return buildClineSystemPrompt({
 		ide: "Terminal Shell",
 		workspaceRoot: input.cwd,
@@ -37,7 +45,7 @@ export async function resolveSystemPrompt(input: {
 	});
 }
 
-const FILE_MENTION_PREFIX = String.raw`(?:\/|~\/|\.{1,2}\/)`;
+const FILE_MENTION_PREFIX = String.raw`(?:\/|~\/|\.{1,2}\/|[A-Za-z]:\\)`;
 const FILE_MENTION_PATTERN_TEST = new RegExp(
 	String.raw`@(?:"${FILE_MENTION_PREFIX}[^"\r\n]+"|${FILE_MENTION_PREFIX}\S+)`,
 	"i",

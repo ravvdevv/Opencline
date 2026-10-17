@@ -8,7 +8,7 @@ import {
 	rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { $ } from "bun";
 
 const cliDir = resolve(import.meta.dir, "..");
@@ -88,6 +88,8 @@ export interface CompileCliBinaryOptions {
 	 * pick (an SSH home, a GUI app's cwd) should turn this off.
 	 */
 	autoloadLaunchDirectoryConfig?: boolean;
+	/** Windows .ico path, only supported for native Windows builds. */
+	windowsIcon?: string;
 }
 
 /** Compiles the CLI entrypoint into one self-contained executable. */
@@ -110,10 +112,7 @@ export async function compileCliBinary(
 		scratchRoot,
 		`cline-build-${input.bunTarget}-${process.pid}`,
 	);
-	const tmpOutfile = join(
-		tmpDir,
-		input.outfile.endsWith(".exe") ? "cline.exe" : "cline",
-	);
+	const tmpOutfile = join(tmpDir, basename(input.outfile));
 	mkdirSync(tmpDir, { recursive: true });
 
 	const previousCwd = process.cwd();
@@ -132,6 +131,21 @@ export async function compileCliBinary(
 				autoloadPackageJson: true,
 				...(input.execArgv?.length ? { execArgv: input.execArgv } : {}),
 				...(autoload ? {} : { autoloadDotenv: false, autoloadBunfig: false }),
+				...(input.windowsIcon &&
+				process.platform === "win32" &&
+				input.bunTarget.includes("windows") &&
+				input.bunTarget.includes(process.arch)
+					? {
+							windows: {
+								icon: input.windowsIcon,
+								title: "OpenCline",
+								description: "OpenCline autonomous coding agent CLI",
+								version: JSON.parse(
+									readFileSync(join(cliDir, "package.json"), "utf-8"),
+								).version,
+							},
+						}
+					: {}),
 			},
 			minify: true,
 			external: ["@anthropic-ai/vertex-sdk"],

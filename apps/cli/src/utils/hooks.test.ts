@@ -115,13 +115,37 @@ describe("createRuntimeHooks", () => {
 		eventMocks.closeInlineStreamIfNeeded.mockReset();
 	});
 
-	it("disables runtime hooks in yolo mode", async () => {
+	it("keeps the engineering workflow gate active in yolo mode", async () => {
 		const runtimeHooks = createRuntimeHooks({
 			yolo: true,
 			dispatchHookEvent: vi.fn(),
 		});
 
-		expect(runtimeHooks.hooks).toBeUndefined();
+		expect(runtimeHooks.hooks?.beforeRun).toBeUndefined();
+		expect(runtimeHooks.hooks?.beforeTool).toBeTypeOf("function");
+		const result = await runtimeHooks.hooks?.beforeTool?.({
+			snapshot: {
+				agentId: "agent-1",
+				status: "running",
+				iteration: 0,
+				messages: [
+					{
+						id: "user-1",
+						role: "user",
+						content: [{ type: "text", text: "Implement a new authentication feature." }],
+						createdAt: 0,
+					},
+				],
+				pendingToolCalls: [],
+				usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+			},
+			tool: { name: "write_to_file", description: "", inputSchema: {}, execute: async () => "ok" },
+			toolCall: { type: "tool-call", toolCallId: "call-1", toolName: "write_to_file", input: { path: "src/auth.ts" } },
+			input: { path: "src/auth.ts" },
+		} as never);
+
+		expect(result?.skip).toBe(true);
+		expect(result?.reason).toContain("explicit user approval");
 		await expect(runtimeHooks.shutdown()).resolves.toBeUndefined();
 	});
 

@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
 $installDir = Join-Path $env:LOCALAPPDATA "OpenCline"
-$sourceExe = Join-Path $repoRoot "apps\cli\dist\cli-windows-x64\bin\cline.exe"
+$sourceExe = Join-Path $repoRoot "apps\cli\dist\cli-windows-x64\bin\opencline.exe"
 $targetExe = Join-Path $installDir "opencline.exe"
 
 # Updating a running Windows executable is not allowed. Detect this before spending

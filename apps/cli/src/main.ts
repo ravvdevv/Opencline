@@ -570,6 +570,105 @@ export async function runCli(): Promise<void> {
 		isInteractiveTTY: () => isFullTTY,
 	});
 
+	const registerMemoryCommand = (
+		name: "memory" | "memory-global",
+		scope: "project" | "global",
+	) => {
+		program
+			.command(name)
+			.description(
+				scope === "global"
+					? "Inspect and manage global memory shared across projects"
+					: "Inspect and manage memory for the current project",
+			)
+			.option("--init", "Create the memory file if it does not exist")
+			.option("--clear", "Clear the memory file (requires --yes)")
+			.option("--yes", "Confirm destructive memory actions")
+			.option("--path", "Print the memory file path")
+			.option("--add <note>", "Add a concise note without duplicating existing entries")
+			.option("--search <query>", "Search memory for relevant lines")
+			.action(
+				async (
+					opts: {
+						init?: boolean;
+						clear?: boolean;
+						yes?: boolean;
+						path?: boolean;
+						add?: string;
+						search?: string;
+					},
+					cmd: Command,
+				) => {
+					ctx.exitCode = 0;
+					const {
+						appendMemoryNote,
+						clearMemory,
+						initializeMemory,
+						readMemory,
+						resolveMemoryPath,
+						searchMemory,
+					} = await import("./runtime/memory");
+					const cwd = cmd.parent?.opts().cwd ?? process.cwd();
+					const path = resolveMemoryPath(scope, cwd);
+					if (opts.clear && !opts.yes) {
+						io.writeErr(
+							`Refusing to clear memory without --yes. Use: opencline ${name} --clear --yes`,
+						);
+						ctx.exitCode = 1;
+						return;
+					}
+					if (opts.clear) {
+						io.writeln(`Cleared ${scope} memory: ${clearMemory(scope, cwd)}`);
+						return;
+					}
+					if (opts.init) {
+						io.writeln(`Memory file ready: ${initializeMemory(scope, cwd)}`);
+						return;
+					}
+					if (opts.path) {
+						io.writeln(path);
+						return;
+					}
+					if (opts.add !== undefined) {
+						try {
+							const result = appendMemoryNote(scope, opts.add, cwd);
+							io.writeln(
+								result.added
+									? `Added note to ${result.path}`
+									: `Note already exists in ${result.path}`,
+							);
+						} catch (error) {
+							io.writeErr(error instanceof Error ? error.message : String(error));
+							ctx.exitCode = 1;
+						}
+						return;
+					}
+					if (opts.search !== undefined) {
+						const matches = searchMemory(scope, opts.search, cwd);
+						io.writeln(
+							matches.length
+								? matches.map((match) => `${match.line}: ${match.text}`).join("\n")
+								: `No matches in ${scope} memory.`,
+						);
+						return;
+					}
+					const memory = readMemory(scope, cwd);
+					if (!memory.exists) {
+						io.writeln(
+							`No ${scope} memory file yet. Create it with: opencline ${name} --init`,
+						);
+						io.writeln(`Path: ${path}`);
+						return;
+					}
+					io.writeln(
+						`# ${scope} memory: ${path}\n\n${memory.content || "(empty)"}${memory.truncated ? "\n\n[Output truncated to keep memory context bounded.]" : ""}`,
+					);
+				},
+			);
+	};
+	registerMemoryCommand("memory", "project");
+	registerMemoryCommand("memory-global", "global");
+
 	program
 		.command("hook")
 		.description("Handle a hook payload from stdin")

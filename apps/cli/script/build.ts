@@ -54,6 +54,18 @@ const targets = buildOptions.single
 		)
 	: allTargets;
 
+const nativeWindowsBuild =
+	process.platform === "win32" &&
+	targets.some((item) => item.os === "win32" && item.arch === process.arch);
+let openClineIconPath: string | undefined;
+if (nativeWindowsBuild) {
+	const iconOutput = join(tmpdir(), `opencline-icon-${process.pid}.ico`);
+	await $`powershell -NoProfile -ExecutionPolicy Bypass -File ${join(import.meta.dir, "prepare-opencline-icon.ps1")} -OutputPath ${iconOutput}`.cwd(
+		rootDir,
+	);
+	openClineIconPath = iconOutput;
+}
+
 const opentuiVersion = pkg.dependencies["@opentui/core"];
 const optionsError = validateBuildOptions({
 	options: buildOptions,
@@ -150,7 +162,12 @@ for (const item of targets) {
 	const displayOs = item.os === "win32" ? "windows" : item.os;
 	const name = `@cline/cli-${displayOs}-${item.arch}`;
 	const dirName = `cli-${displayOs}-${item.arch}`;
-	const binaryName = item.os === "win32" ? "cline.exe" : "cline";
+	const binaryName =
+		buildOptions.single && item.os === "win32"
+			? "opencline.exe"
+			: item.os === "win32"
+				? "cline.exe"
+				: "cline";
 	const bunTarget = getBunTarget(item);
 
 	console.log(`\nBuilding ${name} (target: ${bunTarget})...`);
@@ -160,7 +177,15 @@ for (const item of targets) {
 	const outfile = join(outDir, binaryName);
 
 	try {
-		await compileCliBinary({ bunTarget, outfile });
+		await compileCliBinary({
+			bunTarget,
+			outfile,
+			...(nativeWindowsBuild &&
+			item.os === "win32" &&
+			item.arch === process.arch
+				? { windowsIcon: openClineIconPath }
+				: {}),
+		});
 	} catch (error) {
 		console.error(`Build failed for ${dirName}:`, error);
 		process.exit(1);
@@ -269,6 +294,10 @@ for (const item of targets) {
 
 	binaries[name] = version;
 	console.log(`  Built ${name}`);
+}
+
+if (openClineIconPath) {
+	rmSync(openClineIconPath, { force: true });
 }
 
 console.log(`\nBuild complete. ${Object.keys(binaries).length} targets built.`);

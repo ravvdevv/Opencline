@@ -63,7 +63,7 @@ jobs:
       - name: Smoke test executable
         shell: pwsh
         run: |
-          $exe = "apps/cli/dist/cli-windows-x64/bin/cline.exe"
+          $exe = "apps/cli/dist/cli-windows-x64/bin/opencline.exe"
           if (-not (Test-Path $exe)) { throw "Build did not produce $exe" }
 
           $versionOutput = (& $exe --version | Out-String).Trim()

@@ -14,7 +14,7 @@
     ],
     "scripts": {
         "prepare": "husky",
-        "build": "bun run clean && bun install && bun run build:sdk && bun -F @cline/cli build",
+        "build": "bun run clean && bun install && bun run install:opencline",
         "build:sdk": "bun --production -F './sdk/packages/*' build",
         "build:apps": "bun -F './apps/**' --production build",
         "build:models": "bun -F @cline/llms generate:models && bun format --write",
@@ -30,6 +30,7 @@
         "test:e2e": "bun -F @cline/core test:e2e && bun -F @cline/cli test:e2e",
         "test:e2e:interactive": "bun -F @cline/cli test:e2e:interactive",
         "verify:routines": "zsh -lc 'cd sdk/packages/core && bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
+        "verify:changes": "bun sdk/scripts/verify-changes.ts",
         "verify:workos-device-auth": "bun sdk/scripts/verify-workos-device-auth.ts",
         "biome": "bunx --bun @biomejs/biome",
         "format": "bun biome format sdk/ apps/cli/ apps/cline-hub/ apps/examples/",

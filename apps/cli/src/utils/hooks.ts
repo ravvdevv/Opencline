@@ -1,5 +1,6 @@
 import type { AgentHooks, HookEventPayload } from "@cline/core";
 import { closeInlineStreamIfNeeded } from "./events";
+import { createEngineeringWorkflowGuard } from "../runtime/engineering-workflow";
 import {
 	c,
 	emitJsonLine,
@@ -173,9 +174,10 @@ export function createRuntimeHooks(options: {
 	hooks?: AgentHooks;
 	shutdown: () => Promise<void>;
 } {
+	const enforceEngineeringWorkflow = createEngineeringWorkflowGuard();
 	if (options.yolo === true) {
 		return {
-			hooks: undefined,
+			hooks: { beforeTool: enforceEngineeringWorkflow },
 			shutdown: async () => {},
 		};
 	}
@@ -216,6 +218,8 @@ export function createRuntimeHooks(options: {
 				return undefined;
 			},
 			beforeTool: async (ctx) => {
+				const gate = enforceEngineeringWorkflow(ctx);
+				if (gate) return gate;
 				await dispatchHookPayload(
 					{
 						...basePayload(baseContextFromSnapshot(ctx.snapshot), {

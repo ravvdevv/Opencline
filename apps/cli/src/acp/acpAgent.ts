@@ -33,6 +33,7 @@ import {
 import { isLikelyAuthError, type MessageWithMetadata } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
+import { createEngineeringWorkflowGuard } from "../runtime/engineering-workflow";
 import { subscribeToAgentEvents } from "../runtime/session-events";
 import { createCliCore } from "../session/session";
 import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
@@ -751,6 +752,10 @@ export class AcpAgent implements Agent {
 				...config,
 				modelId: session.currentModelId,
 				sessionId: acpSessionId,
+				hooks: {
+					...config.hooks,
+					beforeTool: createEngineeringWorkflowGuard(),
+				},
 			},
 			interactive: true,
 			initialMessages,

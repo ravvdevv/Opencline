@@ -49,7 +49,7 @@ export function createMistakeLimitDecisionResolver(input: {
 			return {
 				action: "continue" as const,
 				guidance:
-					"mistake_limit_reached: retry with a different approach, validate tool parameters before calls, and avoid repeating failed steps.",
+					"mistake_limit_reached: stop repeating the failing action. First diagnose the latest failure from its exact error/output, inspect the relevant code or state, and identify a different approach before acting. Validate tool parameters against the tool schema, make the smallest targeted change, then verify the result with an appropriate check. If the same failure persists, change strategy or explain the blocker instead of looping. Do not claim success without evidence.",
 			};
 		}
 		return {

@@ -26,18 +26,26 @@ describe("createMistakeLimitDecisionResolver", () => {
 			askQuestionRef: { current: null },
 		});
 
-		await expect(
-			decide({
-				iteration: 4,
-				consecutiveMistakes: 2,
-				maxConsecutiveMistakes: 3,
-				reason: "tool_execution_failed",
-				details: "bad args",
-			}),
-		).resolves.toMatchObject({
-			action: "continue",
-			guidance: expect.stringContaining("retry with a different approach"),
+		const result = await decide({
+			iteration: 4,
+			consecutiveMistakes: 2,
+			maxConsecutiveMistakes: 3,
+			reason: "tool_execution_failed",
+			details: "bad args",
 		});
+
+		expect(result).toMatchObject({
+			action: "continue",
+			guidance: expect.stringContaining("stop repeating the failing action"),
+		});
+		if (result.action === "continue") {
+			expect(result.guidance).toContain(
+				"verify the result with an appropriate check",
+			);
+			expect(result.guidance).toContain(
+				"Do not claim success without evidence",
+			);
+		}
 	});
 
 	it("honors an explicit stop answer", async () => {
