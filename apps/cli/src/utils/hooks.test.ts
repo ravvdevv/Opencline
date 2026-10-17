@@ -115,7 +115,7 @@ describe("createRuntimeHooks", () => {
 		eventMocks.closeInlineStreamIfNeeded.mockReset();
 	});
 
-	it("keeps the engineering workflow gate active in yolo mode", async () => {
+	it("allows normal implementation in yolo mode while keeping the safety guard active", async () => {
 		const runtimeHooks = createRuntimeHooks({
 			yolo: true,
 			dispatchHookEvent: vi.fn(),
@@ -144,8 +144,7 @@ describe("createRuntimeHooks", () => {
 			input: { path: "src/auth.ts" },
 		} as never);
 
-		expect(result?.skip).toBe(true);
-		expect(result?.reason).toContain("explicit user approval");
+		expect(result).toBeUndefined();
 		await expect(runtimeHooks.shutdown()).resolves.toBeUndefined();
 	});
 

@@ -63,8 +63,8 @@ describe("resolveSystemPrompt workspace metadata", () => {
 		expect(prompt).toContain("trace the actual execution path");
 		expect(prompt).toContain("Choose the smallest complete fix");
 		expect(prompt).toContain("add a regression test when useful");
-		expect(prompt).toContain("Risk-based engineering workflow");
-		expect(prompt).toContain("For substantial or risky implementation tasks, present a concise specification");
+		expect(prompt).toContain("Safety-first engineering workflow");
+		expect(prompt).toContain("Implement the user's requested change directly");
 		expect(prompt).toContain("RED → GREEN → REFACTOR");
 		expect(prompt).toContain("independent review");
 		expect(prompt).toContain("Load reusable skills and specialist workflows only when relevant");
@@ -131,8 +131,11 @@ describe("resolveSystemPrompt persistent memory", () => {
 		const prompt = await resolveSystemPrompt({ cwd, providerId: "cline" });
 
 		expect(prompt).toContain("Persistent Memory");
+		expect(prompt).toContain("# Token Efficiency");
+		expect(prompt).toContain("Do not reread unchanged files");
 		expect(prompt).toContain("Use Bun for package scripts.");
-		expect(prompt).toContain(join(cwd, ".cline", "memory.md"));
+		expect(prompt).toContain("PROJECT MEMORY: current workspace only");
+		expect(prompt).toContain("USER PROFILE: stable user preferences");
 	});
 });
 
@@ -149,7 +152,7 @@ describe("resolveSystemPrompt YOLO mode", () => {
 		});
 
 		expect(prompt).toContain("Always run the relevant tests.");
-		expect(prompt).toContain("Risk-based engineering workflow");
+		expect(prompt).toContain("Implement the user's requested changes directly");
 		expect(prompt).toContain("RED → GREEN → REFACTOR");
 		expect(prompt).toContain("independent review");
 		expect(prompt).toContain("# Workspace Configuration");

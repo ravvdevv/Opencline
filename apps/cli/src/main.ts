@@ -571,15 +571,17 @@ export async function runCli(): Promise<void> {
 	});
 
 	const registerMemoryCommand = (
-		name: "memory" | "memory-global",
-		scope: "project" | "global",
+		name: "memory" | "memory-global" | "memory-user",
+		scope: "project" | "global" | "user",
 	) => {
 		program
 			.command(name)
 			.description(
 				scope === "global"
-					? "Inspect and manage global memory shared across projects"
-					: "Inspect and manage memory for the current project",
+					? "Inspect and manage durable agent memory shared across projects"
+					: scope === "user"
+						? "Inspect and manage the persistent user profile"
+						: "Inspect and manage memory for the current project",
 			)
 			.option("--init", "Create the memory file if it does not exist")
 			.option("--clear", "Clear the memory file (requires --yes)")
@@ -668,6 +670,7 @@ export async function runCli(): Promise<void> {
 	};
 	registerMemoryCommand("memory", "project");
 	registerMemoryCommand("memory-global", "global");
+	registerMemoryCommand("memory-user", "user");
 
 	program
 		.command("hook")

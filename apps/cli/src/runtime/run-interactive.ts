@@ -50,6 +50,7 @@ import {
 	setActiveRuntimeAbort,
 	setActiveRuntimeCleanup,
 } from "./active-runtime";
+import { createPersistentMemoryTool } from "./memory";
 import { createInteractiveApprovalController } from "./interactive/approvals";
 import { runInteractiveChatCommand } from "./interactive/chat-command-runner";
 import { createInteractiveConfigDataLoader } from "./interactive/config-data";
@@ -258,7 +259,10 @@ export async function runInteractive(
 		tuiModeChanged,
 	});
 
-	config.extraTools = config.mode === "plan" ? [switchToActModeTool] : [];
+	const persistentMemoryTool = createPersistentMemoryTool(config.cwd) as unknown as NonNullable<Config["extraTools"]>[number];
+	config.extraTools = config.mode === "plan"
+		? [persistentMemoryTool, switchToActModeTool]
+		: [persistentMemoryTool];
 
 	const uiEvents = getUIEventEmitter();
 	const chatCommandState: ChatCommandState = {

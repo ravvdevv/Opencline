@@ -247,7 +247,7 @@ describe("applyInteractiveModeConfig", () => {
 		});
 
 		expect(config.mode).toBe("plan");
-		expect(config.extraTools).toEqual([switchToActModeTool]);
+		expect(config.extraTools?.map((tool) => tool.name)).toEqual(["memory", "switch_to_act_mode"]);
 		expect(config.systemPrompt).toBe("system prompt for plan");
 		expect(resolveSystemPrompt).toHaveBeenCalledWith({
 			cwd: config.cwd,
@@ -267,7 +267,7 @@ describe("applyInteractiveModeConfig", () => {
 		});
 
 		expect(config.mode).toBe("act");
-		expect(config.extraTools).toEqual([]);
+		expect(config.extraTools?.map((tool) => tool.name)).toEqual(["memory"]);
 		expect(config.systemPrompt).toBe("system prompt for act");
 	});
 });

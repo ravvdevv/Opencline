@@ -1,5 +1,6 @@
 import { createTool } from "@cline/shared";
 import type { Config } from "../../utils/types";
+import { createPersistentMemoryTool } from "../memory";
 import { resolveSystemPrompt } from "../prompt";
 
 export type InteractiveUiMode = "plan" | "act";
@@ -121,8 +122,10 @@ export async function applyInteractiveModeConfig(input: {
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
 }): Promise<void> {
 	input.config.mode = input.mode;
-	input.config.extraTools =
-		input.mode === "plan" ? [input.switchToActModeTool] : [];
+	const memoryTool = createPersistentMemoryTool(input.config.cwd) as unknown as NonNullable<Config["extraTools"]>[number];
+	input.config.extraTools = input.mode === "plan"
+		? [memoryTool, input.switchToActModeTool]
+		: [memoryTool];
 	input.config.systemPrompt = await resolveSystemPrompt({
 		cwd: input.config.cwd,
 		providerId: input.config.providerId,

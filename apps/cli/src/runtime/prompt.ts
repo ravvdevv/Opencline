@@ -24,7 +24,11 @@ export async function resolveSystemPrompt(input: {
 	// builder itself (see MODE_TAG_INSTRUCTIONS / PLAN_MODE_INSTRUCTIONS in
 	// @cline/shared), so only the caller-specific rules are merged here.
 	const memorySection = buildMemoryPromptSection(input.cwd);
-	const combinedRules = [input.rules, memorySection]
+	const tokenEfficiencyRules = [
+		"# Token Efficiency",
+		"Work efficiently: search narrowly and read only relevant file ranges; avoid dumping whole files, directories, or logs. Batch independent read-only checks into one tool call when practical. Do not reread unchanged files or repeat successful checks. Make the smallest correct change, run focused tests first, and expand validation only when needed. Avoid spawning subagents unless independent parallel work clearly saves more effort than it costs. Keep progress and final explanations concise; never sacrifice correctness or required verification just to save tokens.",
+	].join("\n\n");
+	const combinedRules = [input.rules, tokenEfficiencyRules, memorySection]
 		.filter(Boolean)
 		.join("\n\n");
 	const rules = mergeRulesForSystemPrompt(
