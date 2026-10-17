@@ -85,10 +85,10 @@ const MAX_TOKENS_RECOVERY_NUDGE =
  * models whose endpoints do not throw transient errors.
  */
 const PROVIDER_ERROR_MAX_RETRIES = 3;
-/** Base backoff before the first retry; doubled each subsequent attempt. */
-const PROVIDER_ERROR_RETRY_BASE_DELAY_MS = 1_000;
+/** Base backoff before the first retry; give overloaded gateways time to recover. */
+const PROVIDER_ERROR_RETRY_BASE_DELAY_MS = 2_000;
 /** Upper bound on any single backoff wait. */
-const PROVIDER_ERROR_RETRY_MAX_DELAY_MS = 15_000;
+const PROVIDER_ERROR_RETRY_MAX_DELAY_MS = 30_000;
 
 /**
  * Terminal message for a turn the provider blocked. Kept separate from the

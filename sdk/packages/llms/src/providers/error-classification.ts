@@ -328,6 +328,8 @@ const RETRYABLE_STATUSES = new Set([
  * from matching free-form message text.
  */
 const PROVIDER_RETURNED_ERROR_PATTERN = /provider returned error/i;
+const TEMPORARY_OVERLOAD_PATTERN =
+	/\b(?:service|provider|server) (?:is )?temporarily overloaded\b|\btemporarily overloaded\b/i;
 
 /**
  * Retryability taken from a real AI SDK error instance via its own typed
@@ -407,8 +409,10 @@ function isRetryableFromSignals(value: unknown): boolean {
 		return false;
 	}
 	// No typed error and no status: the one provider quirk we special-case.
-	return signals.messages.some((message) =>
-		PROVIDER_RETURNED_ERROR_PATTERN.test(message),
+	return signals.messages.some(
+		(message) =>
+			PROVIDER_RETURNED_ERROR_PATTERN.test(message) ||
+			TEMPORARY_OVERLOAD_PATTERN.test(message),
 	);
 }
 

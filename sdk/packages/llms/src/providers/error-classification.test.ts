@@ -447,6 +447,12 @@ describe("isRetryableProviderError", () => {
 		it("retries OpenRouter's bare mid-stream 'Provider returned error' string", () => {
 			expect(isRetryableProviderError("Provider returned error")).toBe(true);
 		});
+
+		it("retries a bare temporary-overload message from an OpenAI-compatible gateway", () => {
+			expect(
+				isRetryableProviderError("Service temporarily overloaded"),
+			).toBe(true);
+		});
 	});
 
 	describe("not retryable", () => {
@@ -541,6 +547,9 @@ describe("isRetryableBeyondSdkRetries", () => {
 			true,
 		);
 		expect(isRetryableBeyondSdkRetries("Provider returned error")).toBe(true);
+		expect(
+			isRetryableBeyondSdkRetries("Service temporarily overloaded"),
+		).toBe(true);
 	});
 
 	it("still refuses permanent failures", () => {
