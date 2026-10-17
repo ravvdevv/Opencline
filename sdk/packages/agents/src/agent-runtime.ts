@@ -1243,10 +1243,25 @@ export class AgentRuntime {
 		let attempt = 0;
 		for (;;) {
 			const turn = await issue();
-			if (
-				attempt >= PROVIDER_ERROR_MAX_RETRIES ||
-				!this.isRetryableProviderErrorTurn(turn)
-			) {
+			if (!this.isRetryableProviderErrorTurn(turn)) {
+				return turn;
+			}
+			if (attempt >= PROVIDER_ERROR_MAX_RETRIES) {
+				const providerError = this.state.lastError;
+				await this.emit({
+					type: "status-notice",
+					snapshot: this.snapshot(),
+					message: `provider request still failing after ${PROVIDER_ERROR_MAX_RETRIES} retries — check the provider endpoint or network and try again`,
+					metadata: {
+						kind: "provider_error_retry",
+						reason: "provider_error_retry",
+						phase: "failed",
+						iteration: this.state.iteration,
+						attempt,
+						maxRetries: PROVIDER_ERROR_MAX_RETRIES,
+						providerError,
+					},
+				});
 				return turn;
 			}
 			attempt += 1;

@@ -330,6 +330,9 @@ const RETRYABLE_STATUSES = new Set([
 const PROVIDER_RETURNED_ERROR_PATTERN = /provider returned error/i;
 const TEMPORARY_OVERLOAD_PATTERN =
 	/\b(?:service|provider|server) (?:is )?temporarily overloaded\b|\btemporarily overloaded\b/i;
+/** Transport failures can happen after a provider accepted the request but before its stream completed. */
+const TRANSIENT_TRANSPORT_PATTERN =
+	/\bECONNRESET\b|socket connection (?:was )?closed unexpectedly|connection reset by peer|socket hang up/i;
 
 /**
  * Retryability taken from a real AI SDK error instance via its own typed
@@ -360,7 +363,9 @@ function isRetryableTypedError(
 		);
 	}
 	if (APICallError.isInstance(error)) {
-		return error.isRetryable === true;
+		// Some SDK/provider adapters wrap a dropped socket as an APICallError
+		// without a retryable HTTP status. Inspect the wrapper and cause too.
+		return error.isRetryable === true || isRetryableFromSignals(error);
 	}
 	if (AISDKError.isInstance(error)) {
 		return isRetryableTypedError(error.cause, depth + 1);
@@ -412,7 +417,8 @@ function isRetryableFromSignals(value: unknown): boolean {
 	return signals.messages.some(
 		(message) =>
 			PROVIDER_RETURNED_ERROR_PATTERN.test(message) ||
-			TEMPORARY_OVERLOAD_PATTERN.test(message),
+			TEMPORARY_OVERLOAD_PATTERN.test(message) ||
+			TRANSIENT_TRANSPORT_PATTERN.test(message),
 	);
 }
 
@@ -456,7 +462,23 @@ export function isRetryableBeyondSdkRetries(error: unknown): boolean {
 	// of exports), and the classifier below is the correct fallback then.
 	try {
 		if (RetryError.isInstance(error)) {
-			return false;
+			const last = error.lastError ?? error.errors[error.errors.length - 1];
+			if (last == null) return false;
+			// The SDK does not reliably retry a socket reset after a response
+			// has started streaming. Allow bounded agent-level retries for
+			// this specific transport failure, but don't stack retries for
+			// ordinary request-start failures already exhausted by the SDK.
+			const signals = collectSignalsFrom([last]);
+			const hasPermanentClientStatus = [...signals.statuses].some(
+				(status) =>
+					status >= 400 && status < 500 && !RETRYABLE_STATUSES.has(status),
+			);
+			return (
+				!hasPermanentClientStatus &&
+				signals.messages.some((message) =>
+					TRANSIENT_TRANSPORT_PATTERN.test(message),
+				)
+			);
 		}
 	} catch {
 		// Fall through to the classifier.

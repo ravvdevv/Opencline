@@ -1535,6 +1535,10 @@ describe("AgentRuntime", () => {
 						: undefined,
 			);
 			const runtime = new AgentRuntime({ model, prepareTurn });
+			const notices: string[] = [];
+			runtime.subscribe((event) => {
+				if (event.type === "status-notice") notices.push(event.message);
+			});
 
 			const runPromise = runtime.run(longPrompt);
 			await vi.runAllTimersAsync();
@@ -1542,6 +1546,11 @@ describe("AgentRuntime", () => {
 
 			expect(result.status).toBe("failed");
 			expect(result.error?.message).toBe("Provider returned error");
+			expect(
+				notices.some((message) =>
+					message.includes("still failing after 3 retries"),
+				),
+			).toBe(true);
 			expect(model.requests).toHaveLength(5);
 			expect(
 				prepareTurn.mock.calls.filter(([c]) => c.overflowRecovery).length,

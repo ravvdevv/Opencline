@@ -449,9 +449,29 @@ describe("isRetryableProviderError", () => {
 		});
 
 		it("retries a bare temporary-overload message from an OpenAI-compatible gateway", () => {
+			expect(isRetryableProviderError("Service temporarily overloaded")).toBe(
+				true,
+			);
+		});
+
+		it("retries a socket reset after a successful response started streaming", () => {
 			expect(
-				isRetryableProviderError("Service temporarily overloaded"),
+				isRetryableProviderError(
+					"Failed to process successful response: The socket connection was closed unexpectedly (ECONNRESET)",
+				),
 			).toBe(true);
+		});
+
+		it("retries a typed API error whose cause is a dropped socket", () => {
+			const error = new APICallError({
+				message: "Failed to process successful response",
+				url: "https://api.example.com/v1/chat/completions",
+				requestBodyValues: {},
+				cause: new Error(
+					"The socket connection was closed unexpectedly (ECONNRESET)",
+				),
+			});
+			expect(isRetryableProviderError(error)).toBe(true);
 		});
 	});
 
@@ -479,7 +499,7 @@ describe("isRetryableProviderError", () => {
 			).toBe(false);
 		});
 
-		it("does not retry a bare transport failure with no status", () => {
+		it("does not retry a generic transport failure without a known transient signal", () => {
 			expect(isRetryableProviderError("fetch failed: socket closed")).toBe(
 				false,
 			);
@@ -505,12 +525,12 @@ describe("isRetryableProviderError", () => {
 			expect(isRetryableProviderError(retryErrorEndingIn(last))).toBe(false);
 		});
 
-		it("does not let an earlier 429 make a final statusless transport failure retryable", () => {
+		it("retries a final socket reset even when an earlier attempt was rate limited", () => {
 			expect(
 				isRetryableProviderError(
 					retryErrorEndingIn(new Error("connection reset by peer")),
 				),
-			).toBe(false);
+			).toBe(true);
 		});
 
 		it("still retries when the final attempt itself is a 5xx", () => {
@@ -547,9 +567,18 @@ describe("isRetryableBeyondSdkRetries", () => {
 			true,
 		);
 		expect(isRetryableBeyondSdkRetries("Provider returned error")).toBe(true);
-		expect(
-			isRetryableBeyondSdkRetries("Service temporarily overloaded"),
-		).toBe(true);
+		expect(isRetryableBeyondSdkRetries("Service temporarily overloaded")).toBe(
+			true,
+		);
+	});
+
+	it("allows an agent-level retry when an SDK RetryError ends in ECONNRESET", () => {
+		const error = new RetryError({
+			message: "Failed after 3 attempts",
+			reason: "maxRetriesExceeded",
+			errors: [new Error("Failed to process successful response: ECONNRESET")],
+		});
+		expect(isRetryableBeyondSdkRetries(error)).toBe(true);
 	});
 
 	it("still refuses permanent failures", () => {
@@ -559,5 +588,10 @@ describe("isRetryableBeyondSdkRetries", () => {
 		expect(isRetryableBeyondSdkRetries("fetch failed: socket closed")).toBe(
 			false,
 		);
+		expect(
+			isRetryableBeyondSdkRetries(
+				"Failed to process successful response: The socket connection was closed unexpectedly (ECONNRESET)",
+			),
+		).toBe(true);
 	});
 });
