@@ -95,7 +95,23 @@ Below is the user's input when they indicated that they wanted to create a compr
  * SdkController.resolveSlashCommands. Declared as kind "skill" so the
  * workflow enable/disable toggles never apply to them.
  */
+const INIT_INSTRUCTIONS = `<explicit_instructions type="init">
+Initialize this project for future AI coding sessions. Work autonomously; do not require a formal specification or approval just to inspect files or create project guidance.
+
+1. Inspect the workspace structure, README, manifests, scripts, and existing contributor instructions. Keep searches focused and skip dependency/build output directories.
+2. Create a concise root AGENTS.md with the project's purpose, architecture, key directories, real setup/build/test/lint commands, and conventions verified from the repository. Do not invent details.
+3. If AGENTS.md already exists, read and preserve it. Make targeted additions or corrections only; never overwrite it wholesale. Prefer an existing canonical instruction file over creating a conflicting duplicate.
+4. Do not edit application code, dependencies, lockfiles, or unrelated files. Never run destructive commands or copy secrets into guidance.
+5. Verify the resulting guidance file and summarize the findings and changes. If the project is empty, keep the file minimal and factual.
+</explicit_instructions>`
+
 export const BUILTIN_SLASH_COMMANDS: AvailableRuntimeCommand[] = [
+	{
+		id: "builtin:init",
+		name: "init",
+		instructions: INIT_INSTRUCTIONS,
+		kind: "skill",
+	},
 	{
 		id: "builtin:deep-planning",
 		name: "deep-planning",

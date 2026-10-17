@@ -113,6 +113,23 @@ export function shouldExpandSkillSlashCommands(mode?: string): boolean {
 	}
 }
 
+const INIT_COMMAND_INSTRUCTIONS = `<explicit_instructions type="init">
+Initialize this project for future AI coding sessions. Work autonomously; do not ask for a formal specification or approval just to inspect files or create the project guidance file.
+
+1. Inspect the workspace root and a focused set of relevant files: directory layout, README, package/dependency manifests, build/test scripts, and existing contributor instructions. Avoid dependency/build output directories and do not dump huge files into context.
+2. Create a concise root AGENTS.md describing the actual project: purpose, architecture, important directories, language/framework, setup/build/test/lint commands, and coding conventions grounded in the files you inspected. Do not invent commands or architecture.
+3. If AGENTS.md already exists, read it first and preserve its existing guidance. Make only targeted additions or corrections; never replace it wholesale. If the project uses an existing canonical instruction file, update that file instead of creating a conflicting duplicate.
+4. Do not modify application source, dependencies, lockfiles, environment files, or unrelated files. Do not run destructive commands. Do not copy secrets or personal data into the guidance file.
+5. Verify the resulting guidance file exists and summarize what was discovered and changed. If the workspace is empty or ambiguous, create only a minimal accurate file rather than guessing.
+</explicit_instructions>`;
+
+function expandBuiltinInitCommand(input: string): string {
+	return input.replace(
+		/(^|\s)\/init(?=\s|$)/i,
+		(_match, prefix: string) => prefix + INIT_COMMAND_INSTRUCTIONS,
+	);
+}
+
 export async function buildUserInputMessage(
 	rawPrompt: string,
 	userInstructionService?: UserInstructionConfigService,
@@ -122,12 +139,22 @@ export async function buildUserInputMessage(
 	userImages: string[];
 	userFiles: string[];
 }> {
-	// First, resolve slash commands if the core config service is available.
+	// First, resolve user-defined slash commands if the core config service is available.
 	let prompt = rawPrompt;
+	const hasUserInitCommand =
+		userInstructionService
+			?.listRuntimeCommands()
+			.some((command) => command.name.toLowerCase() === "init") ?? false;
 	if (userInstructionService) {
 		prompt = userInstructionService.resolveRuntimeSlashCommand(rawPrompt, {
 			expandSkillCommands: shouldExpandSkillSlashCommands(options?.mode),
 		});
+	}
+
+	// Keep /init available even when no user-instruction service or project
+	// workflow file exists, while allowing a user-defined /init to take priority.
+	if (!hasUserInitCommand) {
+		prompt = expandBuiltinInitCommand(prompt);
 	}
 
 	if (!hasFileMentions(prompt)) {

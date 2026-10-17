@@ -3,6 +3,14 @@ import { BUILTIN_SLASH_COMMANDS } from "./builtin-slash-commands"
 import { expandSlashCommands } from "./slash-command-expansion"
 
 describe("BUILTIN_SLASH_COMMANDS", () => {
+	it("expands /init into safe, autonomous project initialization instructions", () => {
+		const result = expandSlashCommands("/init", BUILTIN_SLASH_COMMANDS)
+		expect(result).toContain('<explicit_instructions type="init">')
+		expect(result).toContain("Create a concise root AGENTS.md")
+		expect(result).toContain("never overwrite it wholesale")
+		expect(result).not.toContain("/init")
+	})
+
 	it("expands /deep-planning through the shared slash-command machinery", () => {
 		const result = expandSlashCommands("/deep-planning add a factorial function", BUILTIN_SLASH_COMMANDS)
 		expect(result).toContain('<explicit_instructions type="deep-planning">')

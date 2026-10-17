@@ -114,6 +114,11 @@ export function listInteractiveSlashCommands(
 ): InteractiveSlashCommand[] {
 	const builtins = [
 		{
+			name: "init",
+			instructions: "/init",
+			description: "Inspect the project and create or safely update AGENTS.md",
+		},
+		{
 			name: "config",
 			instructions: "",
 			description: "Open interactive config browser",
