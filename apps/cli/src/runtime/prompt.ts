@@ -177,7 +177,7 @@ function expandBuiltinStyleCommand(
 			command === "caveman"
 				? CAVEMAN_STYLE[selectedLevel]
 				: PONYTAIL_STYLE[selectedLevel];
-		instruction = `<explicit_instructions type="${command}-${selectedLevel}">\n${guidance}\nKeep this style active for the rest of the conversation unless the user changes it. Normal correctness and safety rules take priority.\n</explicit_instructions>`;
+		instruction = `<explicit_instructions type="${command}-${selectedLevel}">\n${guidance}\nThis explicit command overrides the corresponding startup default. Keep this setting active for the rest of the conversation unless the user changes it. Normal correctness and safety rules take priority.\n</explicit_instructions>`;
 	} else {
 		const instructions: Record<string, string> = {
 			"i-have-adhd":

@@ -68,6 +68,7 @@ describe("buildUserInputMessage", () => {
 		);
 		expect(result.prompt).toContain('type="caveman-ultra"');
 		expect(result.prompt).toContain("extremely compact, direct prose");
+		expect(result.prompt).toContain("overrides the corresponding startup default");
 		expect(result.prompt).toContain("explain this error");
 		expect(result.prompt).not.toContain("/caveman ultra");
 	});
@@ -165,8 +166,25 @@ describe("resolveSystemPrompt workspace metadata", () => {
 		expect(prompt).toContain(
 			"Caveman Ultra is the default communication style",
 		);
+		expect(prompt).toContain("ADHD-friendly communication by default");
+		expect(prompt).toContain("Startup profile: apply Caveman Ultra communication");
 		expect(prompt).toContain("/i-have-adhd");
 	});
+
+	it.each(["act", "yolo"] as const)(
+		"injects all three default behaviors into the %s mode system prompt",
+		async (mode) => {
+			const cwd = mkdtempSync(join(tmpdir(), `opencline-${mode}-profile-`));
+			workspaceDirectories.push(cwd);
+
+			const prompt = await resolveSystemPrompt({ cwd, mode });
+
+			expect(prompt).toContain("ADHD-friendly communication by default");
+			expect(prompt).toContain("Ponytail Ultra is the default engineering style");
+			expect(prompt).toContain("Caveman Ultra is the default communication style");
+			expect(prompt).toContain("Startup profile: apply Caveman Ultra communication");
+		},
+	);
 
 	it("includes git remotes and the latest commit for Cline requests", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-prompt-"));
