@@ -1,6 +1,6 @@
 # Install the latest published OpenCline Windows x64 release.
-# Usage from the repository root:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\cli\script\install-opencline-release.ps1
+# Usage:
+#   irm https://raw.githubusercontent.com/ravvdevv/Opencline/main/apps/cli/script/install-opencline-release.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 $repo = "ravvdevv/opencline"
@@ -10,12 +10,77 @@ $assetName = "opencline-windows-x64.exe"
 $checksumName = "$assetName.sha256"
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("opencline-install-" + [guid]::NewGuid().ToString("N"))
 
+function Write-OpenClineHeader {
+    Write-Host ""
+    Write-Host "  OpenCline" -ForegroundColor Cyan
+    Write-Host "  Windows CLI installer" -ForegroundColor DarkGray
+    Write-Host "  ----------------------------------------" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
+function Write-Step([int]$Number, [string]$Message) {
+    Write-Host "  [$Number/4] " -NoNewline -ForegroundColor Cyan
+    Write-Host $Message
+}
+
+function Write-Ok([string]$Message) {
+    Write-Host "        OK  " -NoNewline -ForegroundColor Green
+    Write-Host $Message
+}
+
+function Write-OpenClineDownload([string]$Uri, [string]$Destination, [string]$Label) {
+    $client = [System.Net.Http.HttpClient]::new()
+    $response = $null
+    $inputStream = $null
+    $outputStream = $null
+
+    try {
+        $response = $client.GetAsync($Uri, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
+        $response.EnsureSuccessStatusCode()
+        $totalBytes = $response.Content.Headers.ContentLength
+        $inputStream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $outputStream = [System.IO.File]::Open($Destination, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+        $buffer = New-Object byte[] 65536
+        [long]$downloadedBytes = 0
+        $lastPercent = -1
+
+        while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            $outputStream.Write($buffer, 0, $read)
+            $downloadedBytes += $read
+
+            if ($totalBytes -and $totalBytes -gt 0) {
+                $percent = [int][Math]::Floor(($downloadedBytes * 100.0) / $totalBytes)
+                if ($percent -ne $lastPercent) {
+                    $downloadedMB = [Math]::Round($downloadedBytes / 1MB, 1)
+                    $totalMB = [Math]::Round($totalBytes / 1MB, 1)
+                    Write-Progress -Activity $Label -Status "$percent%  ($downloadedMB MB of $totalMB MB)" -PercentComplete $percent
+                    $lastPercent = $percent
+                }
+            } else {
+                Write-Progress -Activity $Label -Status "$([Math]::Round($downloadedBytes / 1MB, 1)) MB downloaded"
+            }
+        }
+
+        Write-Progress -Activity $Label -Completed
+        if ($totalBytes -and $downloadedBytes -ne $totalBytes) {
+            throw "Download was incomplete: received $downloadedBytes of $totalBytes bytes."
+        }
+    } finally {
+        if ($outputStream) { $outputStream.Dispose() }
+        if ($inputStream) { $inputStream.Dispose() }
+        if ($response) { $response.Dispose() }
+        $client.Dispose()
+        Write-Progress -Activity $Label -Completed
+    }
+}
+
 function Add-UserPath([string]$Directory) {
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $entries = @($currentPath -split ";" | Where-Object { $_ })
     if (-not ($entries | Where-Object { $_.TrimEnd("\") -ieq $Directory.TrimEnd("\") })) {
         [Environment]::SetEnvironmentVariable("Path", (($entries + $Directory) -join ";"), "User")
-        Write-Host "Added $Directory to your user PATH. Open a new terminal to use it."
+        Write-Host "        Added install folder to your user PATH." -ForegroundColor DarkGray
+        Write-Host "        Open a new terminal to use it." -ForegroundColor DarkGray
     }
 }
 
@@ -34,6 +99,8 @@ function Assert-OpenClineNotRunning([string]$ExecutablePath) {
 }
 
 try {
+    Write-OpenClineHeader
+    Write-Step 1 "Checking the latest GitHub release..."
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
     $headers = @{ "User-Agent" = "OpenCline-release-installer"; "Accept" = "application/vnd.github+json" }
     $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/latest" -Headers $headers
@@ -41,14 +108,18 @@ try {
     $checksumAsset = $release.assets | Where-Object { $_.name -eq $checksumName } | Select-Object -First 1
 
     if (-not $asset -or -not $checksumAsset) {
-        throw "The latest GitHub Release does not contain the expected executable and checksum. Check https://github.com/$repo/releases."
+        throw "The latest release does not include the expected Windows executable and checksum. Check https://github.com/$repo/releases."
     }
+    Write-Ok "Found release $($release.tag_name)."
 
+    Write-Step 2 "Downloading OpenCline..."
     $downloadExe = Join-Path $tempDir $assetName
     $downloadChecksum = Join-Path $tempDir $checksumName
-    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $downloadExe -Headers @{ "User-Agent" = "OpenCline-release-installer" } -UseBasicParsing
-    Invoke-WebRequest -Uri $checksumAsset.browser_download_url -OutFile $downloadChecksum -Headers @{ "User-Agent" = "OpenCline-release-installer" } -UseBasicParsing
+    Write-OpenClineDownload -Uri $asset.browser_download_url -Destination $downloadExe -Label "Downloading OpenCline"
+    Write-OpenClineDownload -Uri $checksumAsset.browser_download_url -Destination $downloadChecksum -Label "Downloading SHA-256 checksum"
+    Write-Ok "Download complete."
 
+    Write-Step 3 "Verifying download integrity..."
     $expectedHash = ((Get-Content $downloadChecksum -Raw).Trim() -split "\s+")[0].ToLowerInvariant()
     if ($expectedHash -notmatch "^[0-9a-f]{64}$") {
         throw "The release checksum file is malformed."
@@ -62,7 +133,9 @@ try {
     if ($LASTEXITCODE -ne 0 -or -not $downloadVersion) {
         throw "The downloaded executable failed its version check. The existing installation was left unchanged."
     }
+    Write-Ok "SHA-256 verified. $downloadVersion"
 
+    Write-Step 4 "Installing to $installDir..."
     Assert-OpenClineNotRunning $targetExe
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
     $stagedExe = "$targetExe.new"
@@ -91,8 +164,27 @@ try {
         throw "The executable was installed but its version check failed. Inspect $targetExe before running it."
     }
 
-    Write-Host "Installed OpenCline $version to $targetExe"
-    Write-Host "Verified SHA-256: $actualHash"
+    Write-Host ""
+    Write-Host "  ----------------------------------------" -ForegroundColor DarkGray
+    Write-Host "  OpenCline installed successfully" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Version   $version"
+    Write-Host "  Location  $targetExe"
+    Write-Host "  SHA-256   verified" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Open a new terminal and run: " -NoNewline
+    Write-Host "opencline" -ForegroundColor Cyan
+    Write-Host ""
+} catch {
+    Write-Progress -Activity "Downloading OpenCline" -Completed
+    Write-Host ""
+    Write-Host "  Installation failed" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Your existing installation was not replaced unless installation had already completed." -ForegroundColor DarkGray
+    Write-Host "  Releases: https://github.com/$repo/releases" -ForegroundColor DarkGray
+    Write-Host ""
+    exit 1
 } finally {
     Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
