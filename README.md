@@ -5,11 +5,11 @@
 <h1 align="center">OpenCline</h1>
 
 <p align="center">
-  <strong>A terminal-first AI coding agent that spends less time getting in your way.</strong>
+  <strong>Your terminal. Your codebase. Less AI nonsense.</strong>
 </p>
 
 <p align="center">
-  Build, debug, review, and improve real projects from your terminal, with practical defaults for safer and more efficient coding sessions.
+  A terminal-first AI coding agent built to help you ship, debug, and improve real software without fighting your tools.
 </p>
 
 <p align="center">
@@ -22,23 +22,24 @@
 
 ---
 
-OpenCline is my opinionated fork of [Cline](https://github.com/cline/cline), focused on a better terminal-first coding workflow. It keeps the agentic coding foundation while adding practical improvements to safety, reliability, setup, and default behavior.
+Most coding agents can edit files. The annoying part is getting them to work the way you actually want.
 
-**The goal:** spend your tokens solving the problem, not fighting the workflow.
+**OpenCline makes the useful stuff the default:** concise responses, practical coding habits, persistent project context, focused safety checks, and recovery when providers have a bad day.
+
+It is an opinionated fork of [Cline](https://github.com/cline/cline), built around a simple idea: **spend your tokens shipping software, not managing your AI.**
 
 ## Why OpenCline?
 
-- **Useful from the first prompt.** Caveman Ultra and Ponytail Ultra are built-in styles with token-conscious defaults. Startup skill injection can also load installed Caveman, Ponytail, and ADHD-friendly instructions automatically.
-- **Memory that survives sessions.** Separate user, global-agent, and project memory stores keep preferences and project decisions scoped, bounded, and editable.
-- **Safer without needless approval loops.** The focused guard blocks recognizable high-risk destructive commands and commands that appear to exfiltrate secrets, while ordinary implementation remains autonomous.
-- **More reliable provider sessions.** Retries cover temporary provider overloads and dropped streams, with clearer reporting when recovery is exhausted.
-- **A real engineering workflow.** Change verification discovers affected packages and runs relevant checks, with SDK rebuilds when SDK source changes.
-- **Simpler Windows setup.** The standalone Windows x64 executable, checksum-verifying release installer, and guarded local updater reduce installation friction.
-- **A more useful CLI.** Includes built-in project initialization, style commands, review/audit/debt helpers, improved startup override handling, and provider fixes such as AWS Bedrock profile selection.
+- **Gets to the point.** Caveman Ultra and Ponytail Ultra provide concise, task-focused defaults, with style commands you can change whenever you want.
+- **Remembers what matters.** Separate user, global, and project memory help preserve preferences and decisions between sessions.
+- **Works with you, not against you.** Normal implementation stays autonomous, while focused safeguards catch recognizable destructive commands and possible secret leaks.
+- **Recovers from provider hiccups.** Retries handle temporary overloads and dropped streams, with clear errors when recovery runs out.
+- **Helps you ship properly.** Project initialization and change-verification tools help generate guidance and run relevant checks.
+- **Ready for Windows.** A standalone x64 CLI, checksum-verified installer, and guarded updater make setup less of a side quest.
 
 ## What’s improved
 
-### Agent behavior, memory, and workflow
+### Less prompt babysitting
 
 - Built-in `/caveman` and `/ponytail` style commands support `lite`, `full`, `ultra`, and `off`; Ultra is the default level. Their core behavior does not require downloading a skill just to use the style commands.
 - Built-in `/i-have-adhd`, `/ponytail-review`, `/ponytail-audit`, and `/ponytail-debt` prompt helpers provide focused response, review, audit, and technical-debt guidance.
@@ -48,14 +49,14 @@ OpenCline is my opinionated fork of [Cline](https://github.com/cline/cline), foc
 - A focused safety guard blocks recognizable dangerous operations such as disk/partition destruction, broad recursive deletion, destructive Git commands, destructive database statements, and commands that appear to send credentials or secret files externally. It is designed to avoid forcing a synthetic specification-approval or failing-test cycle for normal edits.
 - A change-verification script identifies changed files and affected packages, runs relevant package checks, and rebuilds SDK packages when SDK source changes.
 
-### Reliability and provider handling
+### Reliability when providers wobble
 
 - Retries for temporary provider-overload errors.
 - Retries for dropped provider streams, with explicit exhaustion reporting instead of silently leaving a session in a confusing state.
 - Correct handling of selected AWS Bedrock profiles.
 - Explicit style overrides take precedence cleanly, and built-in style commands expand locally without an extra model call.
 
-### Windows installation and release flow
+### Windows without the setup scavenger hunt
 
 - Standalone Windows x64 CLI executable for users who don't want to install Node.js or Bun separately to run the published binary.
 - GitHub Actions release workflow validates version tags, builds the executable, smoke-tests `--version` and `--help`, and publishes a SHA-256 checksum with the binary.
