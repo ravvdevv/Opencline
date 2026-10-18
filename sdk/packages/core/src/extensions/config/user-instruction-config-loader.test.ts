@@ -7,7 +7,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	resolveGlobalAgentsRulesPath,
 	setHomeDir,
@@ -316,6 +316,57 @@ Escalation runbook`,
 			expect(rules).toContain("Sign off with GLOBAL-OK.");
 		} finally {
 			setHomeDir(originalHomeDir);
+		}
+	});
+
+	it("loads common coding-agent instruction files as workspace rules", async () => {
+		const workspaceRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-native-agents-"),
+		);
+		tempRoots.push(workspaceRoot);
+
+		const instructionFiles = [
+			{ path: "CLAUDE.md", content: "Follow Claude instructions." },
+			{ path: "GEMINI.md", content: "Follow Gemini instructions." },
+			{
+				path: join(".github", "copilot-instructions.md"),
+				content: "Follow Copilot instructions.",
+			},
+			{
+				path: join(".cursor", "rules", "safety.mdc"),
+				content: "Follow Cursor instructions.",
+			},
+			{ path: ".windsurfrules", content: "Follow Windsurf instructions." },
+			{
+				path: join(".opencode", "AGENTS.md"),
+				content: "Follow OpenCode instructions.",
+			},
+			{
+				path: join(".claude", "CLAUDE.md"),
+				content: "Follow nested Claude instructions.",
+			},
+		];
+
+		for (const file of instructionFiles) {
+			const filePath = join(workspaceRoot, file.path);
+			await mkdir(dirname(filePath), { recursive: true });
+			await writeFile(filePath, file.content);
+		}
+
+		const watcher = createUserInstructionConfigWatcher({
+			rules: {
+				directories: resolveRulesConfigSearchPaths(workspaceRoot),
+				workspacePath: workspaceRoot,
+			},
+		});
+
+		await watcher.refreshAll();
+		const instructions = [...watcher.getSnapshot("rule").values()].map(
+			(record) => record.item.instructions,
+		);
+
+		for (const file of instructionFiles) {
+			expect(instructions).toContain(file.content);
 		}
 	});
 

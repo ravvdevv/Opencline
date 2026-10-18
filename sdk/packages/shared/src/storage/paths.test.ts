@@ -247,7 +247,20 @@ describe("storage path resolution", () => {
 			join(workspacePath, ".cline", RULES_CONFIG_DIRECTORY_NAME),
 		]);
 		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
-			expect.arrayContaining(resolveWorkspaceRulesConfigPaths(workspacePath)),
+			expect.arrayContaining([
+				...resolveWorkspaceRulesConfigPaths(workspacePath),
+				join(workspacePath, "AGENTS.md"),
+				join(workspacePath, "CLAUDE.md"),
+				join(workspacePath, "GEMINI.md"),
+				join(workspacePath, ".claude", "CLAUDE.md"),
+				join(workspacePath, ".github", "copilot-instructions.md"),
+				join(workspacePath, ".github", "instructions"),
+				join(workspacePath, ".cursor", "rules"),
+				join(workspacePath, ".windsurfrules"),
+				join(workspacePath, ".windsurf", "rules"),
+				join(workspacePath, ".roo", "rules"),
+				join(workspacePath, ".opencode", "AGENTS.md"),
+			]),
 		);
 	});
 

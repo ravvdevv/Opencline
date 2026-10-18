@@ -589,11 +589,23 @@ export function resolveRulesConfigSearchPaths(
 	const wsPaths = workspacePath
 		? resolveWorkspaceRulesConfigPaths(workspacePath)
 		: [];
-	const workspaceAgentsFile = workspacePath
-		? [join(workspacePath, AGENTS_RULES_FILE_NAME)]
+	const workspaceAgentInstructionPaths = workspacePath
+		? [
+				join(workspacePath, AGENTS_RULES_FILE_NAME),
+				join(workspacePath, "CLAUDE.md"),
+				join(workspacePath, "GEMINI.md"),
+				join(workspacePath, ".claude", "CLAUDE.md"),
+				join(workspacePath, ".github", "copilot-instructions.md"),
+				join(workspacePath, ".github", "instructions"),
+				join(workspacePath, ".cursor", "rules"),
+				join(workspacePath, ".windsurfrules"),
+				join(workspacePath, ".windsurf", "rules"),
+				join(workspacePath, ".roo", "rules"),
+				join(workspacePath, ".opencode", "AGENTS.md"),
+			]
 		: [];
 	return dedupePaths([
-		...workspaceAgentsFile,
+		...workspaceAgentInstructionPaths,
 		...wsPaths,
 		resolveGlobalAgentsRulesPath(),
 		...resolveGlobalRulesConfigPaths(),

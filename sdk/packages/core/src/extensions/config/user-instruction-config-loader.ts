@@ -36,7 +36,7 @@ import {
 const SKILL_FILE_NAME = "SKILL.md";
 const MANAGED_PLUGIN_MANIFEST_FILE_NAME = "managed.json";
 
-const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
+const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown", ".txt", ".mdc"]);
 
 export {
 	RULES_CONFIG_DIRECTORY_NAME,
@@ -333,6 +333,12 @@ function resolveRuleFallbackName(
 	workspacePath?: string,
 ): string {
 	const fileName = basename(context.filePath);
+	if (
+		workspacePath &&
+		resolve(context.filePath) === resolve(workspacePath, ".claude", "CLAUDE.md")
+	) {
+		return "Claude project instructions";
+	}
 	if (fileName.toLowerCase() !== AGENTS_RULES_FILE_NAME.toLowerCase()) {
 		return basename(context.filePath, extname(context.filePath));
 	}
@@ -686,6 +692,7 @@ export function createRulesConfigDefinition(
 		discoverFiles: discoverRulesLikeFiles,
 		includeFile: (fileName, filePath) =>
 			fileName === ".clinerules" ||
+			fileName === ".windsurfrules" ||
 			isMarkdownFile(fileName) ||
 			isMarkdownFile(filePath),
 		parseFile: (context) =>

@@ -18,8 +18,20 @@ describe("buildUserInputMessage", () => {
 		const result = await buildUserInputMessage("/init");
 
 		expect(result.prompt).toContain('<explicit_instructions type="init">');
-		expect(result.prompt).toContain("Create a concise root AGENTS.md");
-		expect(result.prompt).toContain("never replace it wholesale");
+		expect(result.prompt).toContain(
+			"root AGENTS.md as the broadly supported default",
+		);
+		expect(result.prompt).toContain("CLAUDE.md");
+		expect(result.prompt).toContain("GEMINI.md");
+		expect(result.prompt).toContain(".github/copilot-instructions.md");
+		expect(result.prompt).toContain(".cursor/rules/*.mdc");
+		expect(result.prompt).toContain("never replace a file wholesale");
+		expect(result.prompt).toContain(
+			"Do not ask for confirmation for ordinary edits, tests, or safe local commands.",
+		);
+		expect(result.prompt).toContain(
+			"force-pushing/rewriting shared Git history",
+		);
 		expect(result.prompt).not.toContain("/init");
 		expect(result.userImages).toEqual([]);
 		expect(result.userFiles).toEqual([]);
