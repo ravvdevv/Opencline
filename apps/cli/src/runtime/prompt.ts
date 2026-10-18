@@ -132,6 +132,69 @@ function expandBuiltinInitCommand(input: string): string {
 	);
 }
 
+const CAVEMAN_STYLE = {
+	lite: "Use concise, natural prose. Keep necessary context.",
+	full: "Use short, direct prose. Remove filler and repeated explanations.",
+	ultra:
+		"Use extremely compact, direct prose. Lead with the answer or action. Skip filler and repeated recaps. Preserve exact code, commands, paths, identifiers, error text, uncertainty, and safety-critical detail.",
+	off: "Do not apply the Caveman compression style; use normal clear prose.",
+} as const;
+
+const PONYTAIL_STYLE = {
+	lite: "Prefer simple solutions and avoid speculative abstractions.",
+	full: "Use YAGNI and the smallest complete change. Reuse existing code and dependencies where practical.",
+	ultra:
+		"Aggressively minimize complexity. Inspect first, reuse existing code, implement the smallest complete fix, and test it. Avoid speculative abstractions, unnecessary dependencies, duplicated logic, and overengineering. Never sacrifice correctness, security, validation, data integrity, accessibility, or necessary tests.",
+	off: "Do not apply the Ponytail style label; keep using sound engineering judgment.",
+} as const;
+
+/** Expand built-in style commands locally; no extra model call or installed skill required. */
+function expandBuiltinStyleCommand(
+	input: string,
+	customCommandNames: Set<string>,
+): string {
+	const match = input.match(
+		/^\/(caveman|ponytail|i-have-adhd|ponytail-review|ponytail-audit|ponytail-debt)(?=\s|$)(?:\s+([\s\S]*))?$/i,
+	);
+	if (!match) return input;
+
+	const command = match[1].toLowerCase();
+	if (customCommandNames.has(command)) return input;
+
+	let remainder = match[2]?.trim() ?? "";
+	let instruction: string;
+
+	if (command === "caveman" || command === "ponytail") {
+		const level = /^(lite|full|ultra|off)(?:\s+|$)/i.exec(remainder);
+		const selectedLevel = (level?.[1]?.toLowerCase() ?? "ultra") as
+			| "lite"
+			| "full"
+			| "ultra"
+			| "off";
+		if (level) remainder = remainder.slice(level[0].length).trim();
+
+		const guidance =
+			command === "caveman"
+				? CAVEMAN_STYLE[selectedLevel]
+				: PONYTAIL_STYLE[selectedLevel];
+		instruction = `<explicit_instructions type="${command}-${selectedLevel}">\n${guidance}\nKeep this style active for the rest of the conversation unless the user changes it. Normal correctness and safety rules take priority.\n</explicit_instructions>`;
+	} else {
+		const instructions: Record<string, string> = {
+			"i-have-adhd":
+				"Use ADHD-friendly communication: lead with the action or answer, use short sections and focused numbered steps, make progress visible, and explain errors as location → cause → fix. Avoid preambles, tangents, and filler.",
+			"ponytail-review":
+				"Review the current diff for unnecessary complexity, duplicated logic, needless dependencies, weak tests, and safety or correctness regressions. Report concrete findings first, ordered by severity, with file and line references. Do not edit unless asked.",
+			"ponytail-audit":
+				"Audit the requested repository or scope for correctness, security, reliability, maintainability, and needless complexity. Prioritize actionable findings with file and line references; distinguish confirmed bugs from risks.",
+			"ponytail-debt":
+				"Identify technical debt and shortcuts explicitly present in the requested scope. Separate confirmed debt from speculation, explain impact briefly, and recommend only the smallest useful next action.",
+		};
+		instruction = `<explicit_instructions type="${command}">\n${instructions[command]}\n</explicit_instructions>`;
+	}
+
+	return remainder ? `${instruction}\n\n${remainder}` : instruction;
+}
+
 export async function buildUserInputMessage(
 	rawPrompt: string,
 	userInstructionService?: UserInstructionConfigService,
@@ -143,21 +206,22 @@ export async function buildUserInputMessage(
 }> {
 	// First, resolve user-defined slash commands if the core config service is available.
 	let prompt = rawPrompt;
-	const hasUserInitCommand =
-		userInstructionService
-			?.listRuntimeCommands()
-			.some((command) => command.name.toLowerCase() === "init") ?? false;
+	const runtimeCommands = userInstructionService?.listRuntimeCommands() ?? [];
+	const customCommandNames = new Set(
+		runtimeCommands.map((command) => command.name.toLowerCase()),
+	);
 	if (userInstructionService) {
 		prompt = userInstructionService.resolveRuntimeSlashCommand(rawPrompt, {
 			expandSkillCommands: shouldExpandSkillSlashCommands(options?.mode),
 		});
 	}
 
-	// Keep /init available even when no user-instruction service or project
-	// workflow file exists, while allowing a user-defined /init to take priority.
-	if (!hasUserInitCommand) {
+	// Built-ins remain available without user workflow files, while custom
+	// commands with the same name always take priority.
+	if (!customCommandNames.has("init")) {
 		prompt = expandBuiltinInitCommand(prompt);
 	}
+	prompt = expandBuiltinStyleCommand(prompt, customCommandNames);
 
 	if (!hasFileMentions(prompt)) {
 		return {

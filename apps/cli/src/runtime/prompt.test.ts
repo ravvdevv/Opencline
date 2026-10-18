@@ -42,6 +42,58 @@ describe("buildUserInputMessage", () => {
 		expect(result.prompt).toBe("see https://example.com/init");
 	});
 
+	it("expands built-in style commands locally without a model call", async () => {
+		const caveman = await buildUserInputMessage("/caveman");
+		expect(caveman.prompt).toContain(
+			'<explicit_instructions type="caveman-ultra">',
+		);
+		expect(caveman.prompt).toContain("Lead with the answer or action");
+
+		const ponytail = await buildUserInputMessage(
+			"/ponytail ultra fix this bug",
+		);
+		expect(ponytail.prompt).toContain(
+			'<explicit_instructions type="ponytail-ultra">',
+		);
+		expect(ponytail.prompt).toContain("fix this bug");
+
+		const adhd = await buildUserInputMessage("/i-have-adhd");
+		expect(adhd.prompt).toContain('<explicit_instructions type="i-have-adhd">');
+		expect(adhd.prompt).toContain("make progress visible");
+	});
+
+	it("applies Caveman Ultra by default when invoked as a built-in command", async () => {
+		const result = await buildUserInputMessage(
+			"/caveman ultra explain this error",
+		);
+		expect(result.prompt).toContain('type="caveman-ultra"');
+		expect(result.prompt).toContain("extremely compact, direct prose");
+		expect(result.prompt).toContain("explain this error");
+		expect(result.prompt).not.toContain("/caveman ultra");
+	});
+
+	it("applies Ponytail Ultra by default when invoked without a level", async () => {
+		const result = await buildUserInputMessage(
+			"/ponytail simplify this function",
+		);
+		expect(result.prompt).toContain('type="ponytail-ultra"');
+		expect(result.prompt).toContain("smallest complete fix");
+		expect(result.prompt).toContain("simplify this function");
+	});
+
+	it("expands built-in review commands without invoking an extra model", async () => {
+		const result = await buildUserInputMessage("/ponytail-review");
+		expect(result.prompt).toContain('type="ponytail-review"');
+		expect(result.prompt).toContain("Review the current diff");
+	});
+
+	it("does not expand built-in commands that appear mid-message", async () => {
+		const result = await buildUserInputMessage(
+			"please use /caveman ultra in the docs",
+		);
+		expect(result.prompt).toBe("please use /caveman ultra in the docs");
+	});
+
 	it("extracts image mentions into userImages", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "cli-prompt-"));
 		const imagePath = join(dir, "hero.png");
@@ -110,7 +162,9 @@ describe("resolveSystemPrompt workspace metadata", () => {
 		expect(prompt).toContain("/caveman lite|full|ultra");
 		expect(prompt).toContain("/ponytail lite|full|ultra|off");
 		expect(prompt).toContain("Ponytail Ultra is the default engineering style");
-		expect(prompt).toContain("Caveman Ultra is the default communication style");
+		expect(prompt).toContain(
+			"Caveman Ultra is the default communication style",
+		);
 		expect(prompt).toContain("/i-have-adhd");
 	});
 
