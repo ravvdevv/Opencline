@@ -10,6 +10,9 @@ $assetName = "opencline-windows-x64.exe"
 $checksumName = "$assetName.sha256"
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("opencline-install-" + [guid]::NewGuid().ToString("N"))
 
+# Windows PowerShell 5.1 does not always load System.Net.Http automatically.
+Add-Type -AssemblyName System.Net.Http
+
 function Write-OpenClineHeader {
     Write-Host ""
     Write-Host "  OpenCline" -ForegroundColor Cyan
@@ -35,8 +38,9 @@ function Write-OpenClineDownload([string]$Uri, [string]$Destination, [string]$La
     $outputStream = $null
 
     try {
+        $client.DefaultRequestHeaders.UserAgent.ParseAdd("OpenCline-release-installer")
         $response = $client.GetAsync($Uri, [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-        $response.EnsureSuccessStatusCode()
+        $null = $response.EnsureSuccessStatusCode()
         $totalBytes = $response.Content.Headers.ContentLength
         $inputStream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
         $outputStream = [System.IO.File]::Open($Destination, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
@@ -184,7 +188,7 @@ try {
     Write-Host "  Your existing installation was not replaced unless installation had already completed." -ForegroundColor DarkGray
     Write-Host "  Releases: https://github.com/$repo/releases" -ForegroundColor DarkGray
     Write-Host ""
-    exit 1
+    throw "OpenCline installation failed. See the error above."
 } finally {
     Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
