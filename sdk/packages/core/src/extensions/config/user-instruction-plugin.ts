@@ -56,6 +56,7 @@ export interface CreateUserInstructionPluginOptions {
 	includeWorkflows?: boolean;
 	registerSkillsTool?: boolean;
 	allowedSkillNames?: ReadonlyArray<string>;
+	startupSkills?: ReadonlyArray<{ name: string; args?: string }>;
 }
 
 function normalizeSkillToken(token: string): string {
@@ -238,8 +239,9 @@ export function createUserInstructionPlugin(
 	options: CreateUserInstructionPluginOptions,
 ): AgentExtension {
 	const watcherReady = options.watcherReady ?? Promise.resolve();
+	const startupSkills = options.startupSkills;
 	const capabilities = [
-		options.includeRules ? "rules" : undefined,
+		options.includeRules || startupSkills?.length ? "rules" : undefined,
 		options.registerSkillsTool ? "tools" : undefined,
 		options.includeSkills || options.includeWorkflows ? "commands" : undefined,
 	].filter((value): value is "rules" | "tools" | "commands" => Boolean(value));
@@ -257,6 +259,37 @@ export function createUserInstructionPlugin(
 					id: "cline-user-instructions:rules",
 					source: "user-instruction-watcher",
 					content: () => loadRulesForSystemPromptFromWatcher(options.watcher),
+				});
+			}
+
+			if (startupSkills?.length) {
+				api.registerRule({
+					id: "cline-user-instructions:startup-skills",
+					source: "user-instruction-watcher",
+					content: () => {
+						// Startup defaults are independent of the optional allowlist used
+						// to constrain on-demand skill-tool invocations.
+						const configuredSkills = getConfiguredSkillsFromWatcher(
+							options.watcher,
+						);
+						const instructions = startupSkills.flatMap(({ name, args }) => {
+							const normalized = normalizeSkillToken(name);
+							const matches = configuredSkills.filter(
+								({ id, name: skillName, disabled }) =>
+									!disabled &&
+									(normalizeSkillToken(id) === normalized ||
+										normalizeSkillToken(skillName) === normalized ||
+										normalizeSkillToken(id).endsWith(`:${normalized}`)),
+							);
+							if (matches.length !== 1) {
+								return [];
+							}
+							return [formatSkillInvocation(matches[0].skill, args)];
+						});
+						return instructions.length
+							? `The following installed skills are active by default for this session. Follow their instructions from the first response.\n\n${instructions.join("\n\n")}`
+							: "";
+					},
 				});
 			}
 

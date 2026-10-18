@@ -61,6 +61,18 @@ async function collectExtensionTools(
 	return registry.getRegisteredTools();
 }
 
+async function collectExtensionRules(extensions?: AgentExtension[]) {
+	const registry = createContributionRegistry<
+		AgentExtension,
+		AgentTool,
+		Message[]
+	>({
+		extensions: extensions ?? [],
+	});
+	await registry.initialize();
+	return registry.getRegisteredRules();
+}
+
 describe("DefaultRuntimeBuilder", () => {
 	const previousHome = process.env.HOME;
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
@@ -867,6 +879,7 @@ process.stdin.on("data", (chunk) => {
 
 	it("includes skills tool when workspace skills are available", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-skills-"));
+		tempDirs.push(cwd);
 		const skillDir = join(cwd, ".cline", "skills", "commit");
 		mkdirSync(skillDir, { recursive: true });
 		writeFileSync(
@@ -886,6 +899,65 @@ Use conventional commits.`,
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
 		expect(extensionTools.map((tool) => tool.name)).toContain("skills");
+		await runtime.shutdown("test");
+	});
+
+	it("loads Caveman, Ponytail, and ADHD skills into the startup system rules", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-startup-skills-"));
+		tempDirs.push(cwd);
+		process.env.HOME = cwd;
+		setHomeDir(cwd);
+		const skills = [
+			{
+				name: "caveman",
+				args: "ultra",
+				instructions: "Caveman skill instructions.",
+			},
+			{
+				name: "ponytail",
+				args: "ultra",
+				instructions: "Ponytail skill instructions.",
+			},
+			{
+				name: "i-have-adhd",
+				args: undefined,
+				instructions: "ADHD skill instructions.",
+			},
+		];
+		for (const skill of skills) {
+			const skillDir = join(cwd, ".cline", "skills", skill.name);
+			mkdirSync(skillDir, { recursive: true });
+			writeFileSync(
+				join(skillDir, "SKILL.md"),
+				`---\nname: ${skill.name}\ndescription: Startup test skill\n---\n${skill.instructions}`,
+				"utf8",
+			);
+		}
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			// The on-demand skills allowlist must not suppress always-on defaults.
+			config: makeBaseConfig({ cwd, skills: ["project-review-only"] }),
+		});
+		const startupRule = (await collectExtensionRules(runtime.extensions)).find(
+			(rule) => rule.id === "cline-user-instructions:startup-skills",
+		);
+		expect(startupRule).toBeDefined();
+		const content = await startupRule?.content;
+		const resolvedContent =
+			typeof content === "function" ? await content() : content;
+		expect(resolvedContent).toContain(
+			'<command-name>caveman</command-name>',
+		);
+		expect(resolvedContent).toContain(
+			'<command-name>ponytail</command-name>',
+		);
+		expect(resolvedContent).toContain(
+			'<command-name>i-have-adhd</command-name>',
+		);
+		expect(resolvedContent?.match(/<command-args>ultra<\/command-args>/g)).toHaveLength(2);
+		expect(resolvedContent).toContain("Caveman skill instructions.");
+		expect(resolvedContent).toContain("Ponytail skill instructions.");
+		expect(resolvedContent).toContain("ADHD skill instructions.");
 		await runtime.shutdown("test");
 	});
 

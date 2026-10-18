@@ -541,6 +541,13 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						includeWorkflows: workflowsEnabled,
 						registerSkillsTool,
 						allowedSkillNames: config.skills,
+						startupSkills: rootSkillsEnabled
+							? [
+									{ name: "caveman", args: "ultra" },
+									{ name: "ponytail", args: "ultra" },
+									{ name: "i-have-adhd" },
+								]
+							: undefined,
 					})
 				: undefined;
 		// Plan mode keeps run_commands for read-only investigation; this
