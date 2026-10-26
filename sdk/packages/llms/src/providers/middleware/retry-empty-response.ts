@@ -291,8 +291,39 @@ export function createRetryEmptyResponseMiddleware(
 		specificationVersion: "v4",
 		wrapStream: async ({ doStream, params, model }) => {
 			const abortSignal = params.abortSignal;
-			// Kick off the first attempt eagerly, matching normal doStream timing.
-			const firstResult = await doStream();
+			// Retry transient transport failures from request initiation too. The AI SDK
+			// retries its own APICallError shape, but some runtimes surface connection
+			// failures as raw TypeErrors before a stream exists. Those currently bypass
+			// the stream-level retry loop below and incorrectly fail the whole turn.
+			let firstResult: LanguageModelV4StreamResult;
+			for (let attempt = 1; ; attempt++) {
+				try {
+					firstResult = await doStream();
+					break;
+				} catch (error) {
+					const canRetry =
+						attempt < maxAttempts &&
+						abortSignal?.aborted !== true &&
+						isTransientNetworkError(error);
+					if (!canRetry) {
+						throw error;
+					}
+					const delayMs = networkRetryDelayMs * 2 ** (attempt - 1);
+					logger?.log?.("Model request failed before streaming; retrying transient network error", {
+						severity: "warn",
+						provider: model.provider,
+						modelId: model.modelId,
+						attempt,
+						maxAttempts,
+						retryDelayMs: delayMs,
+						error: error instanceof Error ? error.message : String(error),
+					});
+					await sleep(delayMs, abortSignal);
+					if (abortSignal?.aborted) {
+						throw abortSignal.reason ?? error;
+					}
+				}
+			}
 			// The AI SDK holds this object until step completion; keep its headers
 			// aligned with the surfaced attempt rather than a discarded retry.
 			const response = { ...firstResult.response };
