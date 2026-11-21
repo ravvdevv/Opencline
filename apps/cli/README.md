@@ -1,20 +1,58 @@
 # OpenCline CLI
 
-## Download a standalone Windows executable
+## Download a standalone release
 
-When a tagged release is published, download `opencline-windows-x64.exe` and its SHA-256 checksum from the [OpenCline Releases page](https://github.com/ravvdevv/opencline/releases). The executable bundles the CLI runtime, so you do not need to install Node.js or Bun to run the released binary.
+When a tagged release is published, download the executable for your platform and its SHA-256 checksum from the [OpenCline Releases page](https://github.com/ravvdevv/opencline/releases). The executable bundles the CLI runtime, so you do not need to install Node.js or Bun to run the released binary.
 
-To install or update the latest release from PowerShell without cloning the repository, run:
+| Platform | Asset |
+| --- | --- |
+| Windows x64 | `opencline-windows-x64.exe` |
+| Linux x64 | `opencline-linux-x64` |
+| Linux arm64 | `opencline-linux-arm64` |
+| macOS x64 | `opencline-darwin-x64` |
+| macOS arm64 | `opencline-darwin-arm64` |
+
+### Install latest release (Windows)
 
 ```powershell
 irm https://raw.githubusercontent.com/ravvdevv/opencline/main/apps/cli/script/install-opencline-release.ps1 | iex
 ```
 
-The release installer verifies the downloaded executable against the published SHA-256 checksum before installing it to `%LOCALAPPDATA%\OpenCline\opencline.exe`. It adds the install directory to your user `PATH` and checks the installed CLI version. If you prefer to inspect the script first, download it from the repository and run it locally.
+The release installer verifies the downloaded executable against the published SHA-256 checksum before installing it to `%LOCALAPPDATA%\OpenCline\opencline.exe`. It adds the install directory to your user `PATH` and checks the installed CLI version.
 
-## Build and install locally on Windows
+### Install latest release (Linux/macOS)
 
-From the repository root in PowerShell, run:
+```bash
+curl -fsSL https://raw.githubusercontent.com/ravvdevv/opencline/main/apps/cli/script/install-opencline-release.sh | bash
+```
+
+The release installer verifies the SHA-256 checksum, installs to `${XDG_BIN_HOME:-~/.local/bin}/opencline`, and checks the installed CLI version. Make sure that directory is on your `PATH`.
+
+## Build and install locally from source
+
+Requires [Bun](https://bun.sh) (>= 1.4.2) and Git.
+
+### Linux / Arch Linux
+
+```bash
+# Arch Linux: install Bun if needed
+# sudo pacman -S --needed bun
+
+git clone https://github.com/ravvdevv/opencline.git
+cd opencline
+bun install
+bun run install:opencline
+```
+
+The installer builds the SDK and the CLI for your current platform, installs it to `${XDG_BIN_HOME:-~/.local/bin}/opencline`, and verifies the installed executable. If `~/.local/bin` is not on your `PATH`, add it to your shell profile:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+### Windows
+
+From the repository root in PowerShell:
 
 ```powershell
 bun install
