@@ -23,14 +23,12 @@ function makeActions(
 		openHelp: vi.fn(),
 		openHistory: vi.fn(),
 		exitCline: vi.fn(),
-		onSubmit: vi.fn(async () => ({ currentContextSize: 0 })),
-		currentMode: "act",
 		...overrides,
 	};
 }
 
 describe("runLocalSlashCommandAction", () => {
-	it("opens the skills picker with skills", async () => {
+	it("opens the skills picker with skills", () => {
 		const openSkills = vi.fn();
 		const actions = makeActions({ openSkills });
 		const invocation = {
@@ -39,7 +37,7 @@ describe("runLocalSlashCommandAction", () => {
 			replaceRange: { start: "please ".length, end: "please /skills".length },
 		};
 
-		const handled = await runLocalSlashCommandAction({
+		const handled = runLocalSlashCommandAction({
 			name: "skills",
 			invocation,
 			...actions,
@@ -49,11 +47,11 @@ describe("runLocalSlashCommandAction", () => {
 		expect(openSkills).toHaveBeenCalledWith(invocation);
 	});
 
-	it("opens settings to the plugins tab with plugins", async () => {
+	it("opens settings to the plugins tab with plugins", () => {
 		const openConfig = vi.fn();
 		const actions = makeActions({ openConfig });
 
-		const handled = await runLocalSlashCommandAction({
+		const handled = runLocalSlashCommandAction({
 			name: "plugins",
 			...actions,
 		});
@@ -62,11 +60,11 @@ describe("runLocalSlashCommandAction", () => {
 		expect(openConfig).toHaveBeenCalledWith({ initialTab: "plugins" });
 	});
 
-	it("does not start compaction while a turn is running", async () => {
+	it("does not start compaction while a turn is running", () => {
 		const runCompact = vi.fn();
 		const actions = makeActions({ isRunning: true, runCompact });
 
-		const handled = await runLocalSlashCommandAction({
+		const handled = runLocalSlashCommandAction({
 			name: "compact",
 			...actions,
 		});
@@ -75,11 +73,11 @@ describe("runLocalSlashCommandAction", () => {
 		expect(runCompact).not.toHaveBeenCalled();
 	});
 
-	it("starts compaction while the session is idle", async () => {
+	it("starts compaction while the session is idle", () => {
 		const runCompact = vi.fn();
 		const actions = makeActions({ runCompact });
 
-		const handled = await runLocalSlashCommandAction({
+		const handled = runLocalSlashCommandAction({
 			name: "compact",
 			...actions,
 		});
@@ -150,13 +148,13 @@ describe("runLocalSlashCommandAction", () => {
 		expect(settled).toBe(true);
 	});
 
-	it("exits Cline with quit", async () => {
+	it("exits Cline with quit", () => {
 		vi.useFakeTimers();
 		const exitCline = vi.fn();
 		const actions = makeActions({ exitCline });
 
 		try {
-			const handled = await runLocalSlashCommandAction({
+			const handled = runLocalSlashCommandAction({
 				name: "quit",
 				...actions,
 			});

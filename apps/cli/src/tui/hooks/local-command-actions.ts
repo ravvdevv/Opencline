@@ -1,7 +1,5 @@
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import type { OpenConfigOptions } from "./use-config-panel";
-import type { AgentMode } from "@cline/core";
-import type { UserInputAttachments } from "../types";
 
 export interface LocalSlashCommandActionInput {
 	name: string;
@@ -20,19 +18,11 @@ export interface LocalSlashCommandActionInput {
 	openHelp: () => void;
 	openHistory: () => void;
 	exitCline: () => void;
-	onSubmit: (
-		input: string,
-		mode: AgentMode,
-		delivery?: "queue" | "steer",
-		attachments?: UserInputAttachments,
-		onCommandOutput?: (text: string) => void,
-	) => Promise<{ currentContextSize?: number }>;
-	currentMode: AgentMode;
 }
 
-export async function runLocalSlashCommandAction(
+export function runLocalSlashCommandAction(
 	input: LocalSlashCommandActionInput,
-): Promise<boolean> {
+): boolean | Promise<boolean> {
 	const normalized = input.name;
 	if (normalized === "config" || normalized === "settings") {
 		input.openConfig();
@@ -90,25 +80,6 @@ export async function runLocalSlashCommandAction(
 	}
 	if (normalized === "quit") {
 		setTimeout(input.exitCline, 0);
-		return true;
-	}
-	if (normalized === "btw") {
-		const invocation = input.invocation;
-		if (!invocation) return true;
-
-		// Extract query from "/btw <query>" or just "/btw" (will be empty)
-		const fullText = invocation.text.trim();
-		const match = fullText.match(/^\/btw\s+(.*)$/i);
-		const query = match ? match[1].trim() : "";
-
-		if (!query) {
-			// No query provided - could show a prompt or just do nothing
-			return true;
-		}
-
-		// Submit a prompt asking the agent to search the web
-		const prompt = `Search the web for: ${query}`;
-		await input.onSubmit(prompt, input.currentMode, "queue");
 		return true;
 	}
 	return false;

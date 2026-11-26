@@ -9,7 +9,6 @@ import { HelpDialogContent } from "../components/dialogs/help-dialog";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
-import type { AgentMode } from "@cline/core";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import { HistoryDialogContent } from "../views/history-view";
@@ -35,8 +34,6 @@ export function useLocalCommandActions(input: {
 	onFork: TuiProps["onFork"];
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
-	onSubmit: TuiProps["onSubmit"];
-	currentMode: AgentMode;
 }) {
 	const dialog = useDialog();
 	const session = useSession();
@@ -60,8 +57,6 @@ export function useLocalCommandActions(input: {
 		onFork,
 		onUndo,
 		onExit,
-		onSubmit,
-		currentMode,
 	} = input;
 
 	const openHistory = useCallback(async () => {
@@ -242,8 +237,6 @@ export function useLocalCommandActions(input: {
 				openHelp,
 				openHistory,
 				exitCline: onExit,
-				onSubmit,
-				currentMode,
 			});
 		},
 		[
@@ -262,8 +255,6 @@ export function useLocalCommandActions(input: {
 			runFork,
 			session.isRunning,
 			slashCommandRegistry,
-			onSubmit,
-			currentMode,
 		],
 	);
 
