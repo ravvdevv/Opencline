@@ -26,7 +26,8 @@ export type LocalSlashCommandName =
 	| "history"
 	| "quit"
 	| "help"
-	| "btw";
+	| "btw"
+	| "loop";
 
 export interface SlashCommandRegistryEntry {
 	name: string;
@@ -115,7 +116,11 @@ const TUI_LOCAL_COMMANDS: Array<{
 	},
 	{
 		name: "btw",
-		description: "Ask a question about the code while a task is running",
+		description: "Ask a side question without adding it to the conversation",
+	},
+	{
+		name: "loop",
+		description: "Repeat a prompt on an interval (stop|status)",
 	},
 ];
 
@@ -136,6 +141,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"help",
 	"quit",
 	"btw",
+	"loop",
 ] satisfies ReadonlyArray<LocalSlashCommandName | "team">;
 
 const SYSTEM_COMMAND_PRIORITY = new Map<string, number>(

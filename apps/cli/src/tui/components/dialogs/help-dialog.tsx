@@ -189,7 +189,13 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{ kind: "entry", id: "c-quit", key: "/quit", desc: "Exit Cline" },
 	{ kind: "entry", id: "c-help", key: "/help", desc: "Show this help" },
-	{ kind: "entry", id: "c-btw", key: "/btw", desc: "Pause task and ask a clarifying question about the code" },
+	{ kind: "entry", id: "c-btw", key: "/btw", desc: "Ask a side question without adding it to the conversation" },
+	{
+		kind: "entry",
+		id: "c-loop",
+		key: "/loop [interval] [prompt]",
+		desc: "Repeat a prompt on an interval; use /loop stop to cancel",
+	},
 
 	{ kind: "spacer", id: "s2" },
 	{ kind: "heading", id: "h-mentions", text: "Mentions" },

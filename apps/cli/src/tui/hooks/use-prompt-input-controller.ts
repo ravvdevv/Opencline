@@ -261,38 +261,51 @@ export function usePromptInputController(input: {
 	selectRef.current = selectAutocompleteOption;
 
 	const submitPrompt = useCallback(
-		async (delivery?: "queue" | "steer") => {
-			if (localCommandInFlightRef.current) return;
+		async (delivery?: "queue" | "steer", textOverride?: string) => {
+			const hasOverride = typeof textOverride === "string";
+			// Local command handlers call submitText while the command is still
+			// in flight, so they must bypass the re-entrancy guard.
+			if (!hasOverride && localCommandInFlightRef.current) return;
 
-			const prompt = inputValueRef.current.trim();
+			const sourceText = hasOverride ? textOverride : inputValueRef.current;
+			const prompt = sourceText.trim();
 			if (!prompt) return;
 
-			if (!delivery && prompt.startsWith("/")) {
+			if (!hasOverride && prompt.startsWith("/")) {
 				const parts = prompt.split(/\s+/);
 				const cmd = (parts[0] ?? "").slice(1);
 				const command = resolveSlashCommand(slashCommandRegistry, cmd);
-				let invocation: LocalSlashCommandInvocation | undefined;
-				if (command?.execution === "local") {
-					const text = inputValueRef.current;
-					const commandToken = parts[0] ?? "";
-					const tokenStart = text.length - text.trimStart().length;
-					const tokenEnd = tokenStart + commandToken.length;
-					invocation = {
-						text,
-						cursorOffset: textareaRef.current?.cursorOffset ?? tokenEnd,
-						replaceRange:
-							text.slice(tokenStart, tokenEnd) === commandToken
-								? { start: tokenStart, end: tokenEnd }
-								: undefined,
-					};
-					if (!command.preserveInput) {
-						setInputKey((k) => k + 1);
-						setInputValue("");
-						clearPasteAttachments();
+				// While a turn is running, Enter queues the input as a plain
+				// prompt. Interactive commands still need to execute instead of
+				// being sent to the model verbatim.
+				const interactiveWhileRunning =
+					delivery === "queue" &&
+					command?.execution === "local" &&
+					(command.name === "btw" || command.name === "loop");
+				if (!delivery || interactiveWhileRunning) {
+					let invocation: LocalSlashCommandInvocation | undefined;
+					if (command?.execution === "local") {
+						const text = inputValueRef.current;
+						const commandToken = parts[0] ?? "";
+						const tokenStart = text.length - text.trimStart().length;
+						const tokenEnd = tokenStart + commandToken.length;
+						invocation = {
+							text,
+							cursorOffset: textareaRef.current?.cursorOffset ?? tokenEnd,
+							replaceRange:
+								text.slice(tokenStart, tokenEnd) === commandToken
+									? { start: tokenStart, end: tokenEnd }
+									: undefined,
+						};
+						if (!command.preserveInput) {
+							setInputKey((k) => k + 1);
+							setInputValue("");
+							clearPasteAttachments();
+						}
 					}
-				}
-				if (await runSlashCommand(cmd, invocation)) {
-					return;
+					if (await runSlashCommand(cmd, invocation)) {
+						return;
+					}
 				}
 			}
 
@@ -329,10 +342,12 @@ export function usePromptInputController(input: {
 					text: prompt,
 				});
 			}
-			setInputKey((k) => k + 1);
-			setInputValue("");
-			clearPasteAttachments();
-			if (!delivery) {
+			if (!hasOverride) {
+				setInputKey((k) => k + 1);
+				setInputValue("");
+				clearPasteAttachments();
+			}
+			if (!delivery && !hasOverride) {
 				inputHistory.recordHistoryEntry(prompt);
 			}
 
@@ -416,6 +431,13 @@ export function usePromptInputController(input: {
 
 	const submitRef = useRef(submitPrompt);
 	submitRef.current = submitPrompt;
+
+	/** Submit a prompt from a local command without touching the input box. */
+	const submitText = useCallback(
+		(text: string, delivery?: "queue" | "steer") =>
+			submitPrompt(delivery, text),
+		[submitPrompt],
+	);
 
 	const submitInitialPrompt = useCallback(() => {
 		const prompt = initialPrompt?.trim();
@@ -501,6 +523,7 @@ export function usePromptInputController(input: {
 		focusTextarea,
 		refocusTextarea,
 		submitInitialPrompt,
+		submitText,
 		selectAutocompleteOption,
 		handleImagePaste,
 		handleLargeTextPaste,

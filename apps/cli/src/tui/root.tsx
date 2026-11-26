@@ -121,6 +121,16 @@ function App(props: TuiProps) {
 	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
+	// promptInput is created after the slash-command hook (it consumes the
+	// handler), so local commands reach its full submit path through this ref.
+	const submitTextRef = useRef<
+		(text: string, delivery?: "queue" | "steer") => Promise<void>
+	>(async () => {});
+	const submitTextFromCommand = useCallback(
+		(text: string, delivery?: "queue" | "steer") =>
+			submitTextRef.current(text, delivery),
+		[],
+	);
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
@@ -778,6 +788,7 @@ function App(props: TuiProps) {
 		onUndo: openCheckpointRestore,
 		onExit: exitCline,
 		onSubmit: props.onSubmit,
+		submitText: submitTextFromCommand,
 	});
 
 	const startupActionsRef = useRef({ openConfig, openHistory });
@@ -878,6 +889,7 @@ function App(props: TuiProps) {
 		setAppView,
 		turnErrorReportedRef: agentHandlers.turnErrorReportedRef,
 	});
+	submitTextRef.current = promptInput.submitText;
 	const focusPromptTextarea = promptInput.focusTextarea;
 	const submitInitialPrompt = promptInput.submitInitialPrompt;
 	refocusTextareaRef.current = promptInput.refocusTextarea;

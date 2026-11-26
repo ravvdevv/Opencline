@@ -1,7 +1,7 @@
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialog } from "@opentui-ui/dialog/react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import { resolveSlashCommand } from "../commands/slash-command-registry";
 import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
@@ -15,6 +15,12 @@ import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import { HistoryDialogContent } from "../views/history-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
 import type { OpenConfigOptions } from "./use-config-panel";
+import {
+	DEFAULT_LOOP_PROMPT,
+	getSlashCommandArguments,
+	parseLoopArguments,
+	parseLoopControl,
+} from "../utils/loop-command";
 
 export function useLocalCommandActions(input: {
 	slashCommandRegistry: SlashCommandRegistry;
@@ -36,6 +42,7 @@ export function useLocalCommandActions(input: {
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
 	onSubmit: TuiProps["onSubmit"];
+	submitText: (text: string, delivery?: "queue" | "steer") => Promise<void>;
 }) {
 	const dialog = useDialog();
 	const session = useSession();
@@ -60,6 +67,7 @@ export function useLocalCommandActions(input: {
 		onUndo,
 		onExit,
 		onSubmit,
+		submitText,
 	} = input;
 
 	const openHistory = useCallback(async () => {
@@ -214,59 +222,174 @@ export function useLocalCommandActions(input: {
 		}
 	}, [canForkSession, dialog, onFork, refocusTextarea, session]);
 
-	const runBtw = useCallback(async (invocation?: LocalSlashCommandInvocation) => {
-		if (!session.isRunning) {
-			session.appendEntry({
-				kind: "status",
-				text: "/btw can only be used while a task is running.",
-			});
-			refocusTextarea();
-			return true;
-		}
+	type ActiveLoop = {
+		timer: ReturnType<typeof setInterval>;
+		prompt: string;
+		intervalLabel: string;
+	};
 
-		let question = "";
-		if (invocation) {
-			const fullText = invocation.text.trim();
-			const match = fullText.match(/^\/btw\s+(.*)$/i);
-			question = match ? match[1].trim() : "";
-		}
+	const activeLoopRef = useRef<ActiveLoop | null>(null);
+	const loopTickInFlightRef = useRef(false);
+	const lastPromptRef = useRef("");
+	const sessionRef = useRef(session);
+	sessionRef.current = session;
+	const submitTextRef = useRef(submitText);
+	submitTextRef.current = submitText;
 
-		if (!question) {
-			const result = await dialog.choice<string | null>({
-				size: "medium",
-				content: (ctx: ChoiceContext<string | null>) => (
-					<BtwInputContent {...ctx} placeholder="Enter your question about the code..." />
-				),
-			});
-			if (result === null) {
+	useEffect(
+		() => () => {
+			if (activeLoopRef.current) {
+				clearInterval(activeLoopRef.current.timer);
+				activeLoopRef.current = null;
+			}
+		},
+		[],
+	);
+
+	const stopLoop = () => {
+		const active = activeLoopRef.current;
+		if (!active) return false;
+		clearInterval(active.timer);
+		activeLoopRef.current = null;
+		return true;
+	};
+
+	const runBtw = useCallback(
+		async (invocation?: LocalSlashCommandInvocation) => {
+			if (!session.isRunning) {
+				session.appendEntry({
+					kind: "status",
+					text: "/btw can only be used while a task is running.",
+				});
 				refocusTextarea();
 				return true;
 			}
-			question = result ?? "";
-		}
 
-		if (!question) {
+			const inlineQuestion = getSlashCommandArguments(invocation?.text, "btw");
+			if (inlineQuestion) {
+				lastPromptRef.current = inlineQuestion;
+				session.appendEntry({
+					kind: "status",
+					text: `Steering task: ${inlineQuestion}`,
+				});
+				try {
+					await submitText(inlineQuestion, "steer");
+				} catch (error) {
+					session.appendEntry({
+						kind: "error",
+						text: `Failed to steer task: ${error instanceof Error ? error.message : String(error)}`,
+					});
+				}
+				refocusTextarea();
+				return true;
+			}
+
+			while (sessionRef.current.isRunning) {
+				const result = await dialog.choice<string | null>({
+					size: "medium",
+					content: (ctx: ChoiceContext<string | null>) => (
+						<BtwInputContent
+							{...ctx}
+							placeholder="Ask a follow-up question (Escape to resume task)..."
+						/>
+					),
+				});
+				if (!result) break;
+
+				lastPromptRef.current = result;
+				session.appendEntry({
+					kind: "status",
+					text: `Steering task: ${result}`,
+				});
+				try {
+					await submitText(result, "steer");
+				} catch (error) {
+					session.appendEntry({
+						kind: "error",
+						text: `Failed to steer task: ${error instanceof Error ? error.message : String(error)}`,
+					});
+				}
+			}
+
 			refocusTextarea();
 			return true;
-		}
+		},
+		[dialog, refocusTextarea, session, submitText],
+	);
 
-		session.appendEntry({
-			kind: "status",
-			text: `Steering task: ${question}`,
-		});
-
+	const runLoopTick = useCallback(async (prompt: string) => {
+		if (loopTickInFlightRef.current) return;
+		loopTickInFlightRef.current = true;
+		const currentSession = sessionRef.current;
 		try {
-			await onSubmit(question, session.uiMode, "steer");
+			await submitTextRef.current(
+				prompt,
+				currentSession.isRunning ? "steer" : undefined,
+			);
 		} catch (error) {
-			session.appendEntry({
+			currentSession.appendEntry({
 				kind: "error",
-				text: `Failed to steer task: ${error instanceof Error ? error.message : String(error)}`,
+				text: `Loop prompt failed: ${error instanceof Error ? error.message : String(error)}`,
 			});
+		} finally {
+			loopTickInFlightRef.current = false;
 		}
+	}, []);
 
-		refocusTextarea();
-		return true;
-	}, [dialog, onSubmit, refocusTextarea, session]);
+	const runLoop = useCallback(
+		async (invocation?: LocalSlashCommandInvocation) => {
+			const args = getSlashCommandArguments(invocation?.text, "loop");
+			const control = parseLoopControl(args);
+
+			if (control === "stop") {
+				session.appendEntry({
+					kind: "status",
+					text: stopLoop()
+						? "Loop stopped."
+						: "No active loop in this session.",
+				});
+				refocusTextarea();
+				return true;
+			}
+
+			if (control === "status") {
+				const active = activeLoopRef.current;
+				session.appendEntry({
+					kind: "status",
+					text: active
+						? `Active loop: every ${active.intervalLabel} — "${active.prompt}". Use /loop stop to cancel.`
+						: "No active loop in this session.",
+				});
+				refocusTextarea();
+				return true;
+			}
+
+			stopLoop();
+			const parsed = parseLoopArguments(
+				args,
+				lastPromptRef.current || DEFAULT_LOOP_PROMPT,
+			);
+			lastPromptRef.current = parsed.prompt;
+
+			const timer = setInterval(() => {
+				void runLoopTick(parsed.prompt);
+			}, parsed.intervalMs);
+			timer.unref?.();
+			activeLoopRef.current = {
+				timer,
+				prompt: parsed.prompt,
+				intervalLabel: parsed.intervalLabel,
+			};
+
+			session.appendEntry({
+				kind: "status",
+				text: `Loop started: every ${parsed.intervalLabel} — "${parsed.prompt}". Use /loop stop to cancel.`,
+			});
+			refocusTextarea();
+			return true;
+		},
+		[refocusTextarea, runLoopTick, session],
+	);
 
 	const handleSlashCommand = useCallback(
 		(command: string, invocation?: LocalSlashCommandInvocation) => {
@@ -276,6 +399,9 @@ export function useLocalCommandActions(input: {
 			}
 			if (resolved.name === "btw") {
 				return runBtw(invocation);
+			}
+			if (resolved.name === "loop") {
+				return runLoop(invocation);
 			}
 			return runLocalSlashCommandAction({
 				name: resolved.name,
@@ -312,6 +438,7 @@ export function useLocalCommandActions(input: {
 			runCompact,
 			runFork,
 			runBtw,
+			runLoop,
 			session.isRunning,
 			slashCommandRegistry,
 			onSubmit,
