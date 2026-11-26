@@ -171,6 +171,14 @@ Cline CLI runs in a few different shapes depending on what you need:
 - Yolo: `cline --yolo "..."` skips approval prompts and exits when the turn finishes
 - Zen: `cline --zen "..."` fires the task to the background hub daemon and exits immediately (see below)
 
+## TUI slash commands
+
+- `/btw [question]` asks a side question while a task is running without adding it to the conversation. Bare `/btw` shows the last side question.
+- `/loop [interval] [prompt]` repeats a prompt while the session stays open. Omit the interval to self-pace; use `/loop status` and `/loop stop` to inspect or cancel. `/proactive` is an alias. A `loop.md` file in the workspace supplies the default prompt.
+- `/goal [condition|clear]` keeps a condition attached to every prompt until it is cleared. `/goal` shows the active or last goal; `clear`, `stop`, `off`, `reset`, `none`, and `cancel` all remove it. Goals persist per workspace across CLI restarts and auto-clear when the agent replies with `<<GOAL_ACHIEVED>>`.
+
+The same `/btw`, `/loop`, and `/goal` commands also work in connector chats (Discord, Telegram, Slack, Google Chat, WhatsApp, Linear). Connector goals and loops are isolated per thread.
+
 ## Headless mode for CI/CD
 
 Run Cline with zero interaction for scripting and automation. Pipe input, get JSON output, chain commands, integrate into CI/CD pipelines.

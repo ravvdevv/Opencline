@@ -74,6 +74,7 @@ import { useSlashCommands } from "./hooks/use-slash-commands";
 import { useTerminalTitle } from "./hooks/use-terminal-title";
 import { TerminalColorsContext } from "./hooks/use-theme";
 import type { AppView, TuiProps, TuiStartupTarget } from "./types";
+import { hasGoalAchievedMarker } from "./utils/goal-command";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
 import { createSelectionCopyHandler } from "./utils/selection-copy";
@@ -121,6 +122,16 @@ function App(props: TuiProps) {
 	);
 	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const checkpointRestoreInFlightRef = useRef(false);
+	// promptInput is created after the slash-command hook (it consumes the
+	// handler), so local commands reach its full submit path through this ref.
+	const submitTextRef = useRef<
+		(text: string, delivery?: "queue" | "steer") => Promise<void>
+	>(async () => {});
+	const submitTextFromCommand = useCallback(
+		(text: string, delivery?: "queue" | "steer") =>
+			submitTextRef.current(text, delivery),
+		[],
+	);
 
 	const workspaceRoot = props.config.workspaceRoot?.trim() || props.config.cwd;
 	const canForkSession = session.hasSubmitted || session.entries.length > 0;
@@ -758,27 +769,60 @@ function App(props: TuiProps) {
 		setSessionLastTotalTokens,
 	]);
 
-	const { handleSlashCommand, openHistory } = useLocalCommandActions({
-		slashCommandRegistry,
-		canForkSession,
-		openAccount,
-		openConfig,
-		openMcpManager,
-		openModelSelector,
-		openSkills,
-		openThemePicker,
-		refocusTextarea: () => refocusTextareaRef.current(),
-		setAppView,
-		onClearConversation: clearConversation,
-		onResumeSession: props.onResumeSession,
-		onExportHistorySession: props.onExportHistorySession,
-		onDeleteHistorySession: props.onDeleteHistorySession,
-		onCompact: props.onCompact,
-		onFork: props.onFork,
-		onUndo: openCheckpointRestore,
-		onExit: exitCline,
-		onSubmit: props.onSubmit,
-	});
+	const { handleSlashCommand, openHistory, getActiveGoal, clearActiveGoal } =
+		useLocalCommandActions({
+			slashCommandRegistry,
+			workspaceRoot,
+			canForkSession,
+			openAccount,
+			openConfig,
+			openMcpManager,
+			openModelSelector,
+			openSkills,
+			openThemePicker,
+			refocusTextarea: () => refocusTextareaRef.current(),
+			setAppView,
+			onClearConversation: clearConversation,
+			onResumeSession: props.onResumeSession,
+			onExportHistorySession: props.onExportHistorySession,
+			onDeleteHistorySession: props.onDeleteHistorySession,
+			onCompact: props.onCompact,
+			onFork: props.onFork,
+			onUndo: openCheckpointRestore,
+			onExit: exitCline,
+			onSubmit: props.onSubmit,
+			submitText: submitTextFromCommand,
+		});
+
+	const processedGoalEntriesRef = useRef<WeakSet<object>>(
+		new WeakSet<object>(session.entries),
+	);
+	const sawLiveAssistantStreamRef = useRef(false);
+	useEffect(() => {
+		// Hydrated history is always non-streaming. Only look for the achieved
+		// marker after a real streamed reply has been seen in this session.
+		if (
+			!sawLiveAssistantStreamRef.current &&
+			session.entries.some(
+				(entry) => entry.kind === "assistant_text" && entry.streaming,
+			)
+		) {
+			sawLiveAssistantStreamRef.current = true;
+		}
+		if (!sawLiveAssistantStreamRef.current) return;
+
+		for (const entry of session.entries) {
+			if (processedGoalEntriesRef.current.has(entry)) continue;
+			processedGoalEntriesRef.current.add(entry);
+			if (
+				entry.kind === "assistant_text" &&
+				!entry.streaming &&
+				hasGoalAchievedMarker(entry.text)
+			) {
+				clearActiveGoal("achieved");
+			}
+		}
+	}, [session.entries, clearActiveGoal]);
 
 	const startupActionsRef = useRef({ openConfig, openHistory });
 	startupActionsRef.current = { openConfig, openHistory };
@@ -869,6 +913,7 @@ function App(props: TuiProps) {
 		autocomplete,
 		slashCommandRegistry,
 		handleSlashCommand,
+		getActiveGoal,
 		onSubmit: props.onSubmit,
 		initialPrompt: props.initialPrompt,
 		providerId: props.config.providerId,
@@ -878,6 +923,7 @@ function App(props: TuiProps) {
 		setAppView,
 		turnErrorReportedRef: agentHandlers.turnErrorReportedRef,
 	});
+	submitTextRef.current = promptInput.submitText;
 	const focusPromptTextarea = promptInput.focusTextarea;
 	const submitInitialPrompt = promptInput.submitInitialPrompt;
 	refocusTextareaRef.current = promptInput.refocusTextarea;

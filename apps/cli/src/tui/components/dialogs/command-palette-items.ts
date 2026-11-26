@@ -14,7 +14,9 @@ export type CommandPaletteAction =
 	| "history"
 	| "help"
 	| "quit"
-	| "btw";
+	| "btw"
+	| "loop"
+	| "goal";
 
 export interface CommandPaletteResult {
 	kind: "action";
@@ -148,8 +150,22 @@ const ACTION_ITEMS: Array<{
 		action: "btw",
 		label: "Ask About Code (By The Way)",
 		shortcut: "Opt+B",
-		description: "Pause the current task and ask a clarifying question about the code",
+		description: "Ask a side question without adding it to the conversation",
 		keywords: ["btw", "question", "clarify", "ask"],
+	},
+	{
+		action: "loop",
+		label: "Repeat Prompt On Interval",
+		shortcut: "Opt+J",
+		description: "Repeat a prompt on an interval until stopped",
+		keywords: ["loop", "repeat", "interval", "schedule"],
+	},
+	{
+		action: "goal",
+		label: "Set Active Goal",
+		shortcut: "Opt+O",
+		description: "Keep working toward a goal across turns",
+		keywords: ["goal", "objective", "target", "clear"],
 	},
 ];
 

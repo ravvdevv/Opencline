@@ -316,4 +316,18 @@ describe("slash command registry", () => {
 			getVisibleSystemSlashCommands(registry).map((command) => command.name),
 		).toContain("account");
 	});
+
+	it("keeps proactive as a hidden loop alias", () => {
+		const registry = buildSlashCommandRegistry({});
+
+		expect(resolveSlashCommand(registry, "proactive")).toMatchObject({
+			source: "tui",
+			execution: "local",
+			visible: false,
+			selectable: false,
+		});
+		expect(
+			getVisibleSystemSlashCommands(registry).map((command) => command.name),
+		).not.toContain("proactive");
+	});
 });

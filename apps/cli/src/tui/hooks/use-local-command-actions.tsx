@@ -1,13 +1,14 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { useTerminalDimensions } from "@opentui/react";
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialog } from "@opentui-ui/dialog/react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { SlashCommandRegistry } from "../commands/slash-command-registry";
 import { resolveSlashCommand } from "../commands/slash-command-registry";
 import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
 import { HelpDialogContent } from "../components/dialogs/help-dialog";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
-import { BtwInputContent } from "../components/dialogs/btw-input";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
@@ -15,9 +16,23 @@ import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import { HistoryDialogContent } from "../views/history-view";
 import { runLocalSlashCommandAction } from "./local-command-actions";
 import type { OpenConfigOptions } from "./use-config-panel";
+import {
+	readSessionGoal,
+	writeSessionGoal,
+} from "../../utils/session-goal-store";
+import { parseGoalArguments } from "../utils/goal-command";
+import {
+	DEFAULT_LOOP_PROMPT,
+	getSlashCommandArguments,
+	parseLoopArguments,
+	parseLoopControl,
+	SELF_PACED_LOOP_LABEL,
+	SELF_PACED_MIN_DELAY_MS,
+} from "../utils/loop-command";
 
 export function useLocalCommandActions(input: {
 	slashCommandRegistry: SlashCommandRegistry;
+	workspaceRoot: string;
 	canForkSession: boolean;
 	openAccount: () => void;
 	openConfig: (options?: OpenConfigOptions) => void;
@@ -36,12 +51,14 @@ export function useLocalCommandActions(input: {
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
 	onSubmit: TuiProps["onSubmit"];
+	submitText: (text: string, delivery?: "queue" | "steer") => Promise<void>;
 }) {
 	const dialog = useDialog();
 	const session = useSession();
 	const { height: termHeight } = useTerminalDimensions();
 	const {
 		slashCommandRegistry,
+		workspaceRoot,
 		canForkSession,
 		openAccount,
 		openConfig,
@@ -60,7 +77,15 @@ export function useLocalCommandActions(input: {
 		onUndo,
 		onExit,
 		onSubmit,
+		submitText,
 	} = input;
+
+	const activeGoalRef = useRef<string | null>(null);
+	const lastGoalRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		activeGoalRef.current = readSessionGoal(workspaceRoot);
+	}, [workspaceRoot]);
 
 	const openHistory = useCallback(async () => {
 		const sessionId = await dialog.choice<string>({
@@ -94,6 +119,8 @@ export function useLocalCommandActions(input: {
 						if (typeof result.totalCost === "number") {
 							session.setLastTotalCost(result.totalCost);
 						}
+						activeGoalRef.current = null;
+						writeSessionGoal(workspaceRoot, null);
 						session.setHasSubmitted(true);
 						setAppView("chat");
 					}
@@ -115,6 +142,7 @@ export function useLocalCommandActions(input: {
 		session,
 		setAppView,
 		termHeight,
+		workspaceRoot,
 	]);
 
 	const openHelp = useCallback(async () => {
@@ -214,59 +242,271 @@ export function useLocalCommandActions(input: {
 		}
 	}, [canForkSession, dialog, onFork, refocusTextarea, session]);
 
-	const runBtw = useCallback(async (invocation?: LocalSlashCommandInvocation) => {
-		if (!session.isRunning) {
-			session.appendEntry({
-				kind: "status",
-				text: "/btw can only be used while a task is running.",
-			});
-			refocusTextarea();
-			return true;
-		}
+	type ActiveLoop = {
+		id: number;
+		timer?: ReturnType<typeof setInterval> | ReturnType<typeof setTimeout>;
+		prompt: string;
+		intervalLabel: string;
+		selfPaced: boolean;
+	};
 
-		let question = "";
-		if (invocation) {
-			const fullText = invocation.text.trim();
-			const match = fullText.match(/^\/btw\s+(.*)$/i);
-			question = match ? match[1].trim() : "";
-		}
+	const activeLoopRef = useRef<ActiveLoop | null>(null);
+	const loopTickInFlightRef = useRef(false);
+	const loopSequenceRef = useRef(0);
+	const scheduleSelfPacedRef = useRef<(loop: ActiveLoop, delay: number) => void>(
+		() => {},
+	);
+	const lastPromptRef = useRef("");
+	const sessionRef = useRef(session);
+	sessionRef.current = session;
+	const submitTextRef = useRef(submitText);
+	submitTextRef.current = submitText;
 
-		if (!question) {
-			const result = await dialog.choice<string | null>({
-				size: "medium",
-				content: (ctx: ChoiceContext<string | null>) => (
-					<BtwInputContent {...ctx} placeholder="Enter your question about the code..." />
-				),
-			});
-			if (result === null) {
+	useEffect(
+		() => () => {
+			if (activeLoopRef.current) {
+				clearInterval(activeLoopRef.current.timer);
+				activeLoopRef.current = null;
+			}
+		},
+		[],
+	);
+
+	const stopLoop = () => {
+		const active = activeLoopRef.current;
+		if (!active) return false;
+		clearInterval(active.timer);
+		activeLoopRef.current = null;
+		return true;
+	};
+
+	const runBtw = useCallback(
+		async (invocation?: LocalSlashCommandInvocation) => {
+			if (!session.isRunning) {
+				session.appendEntry({
+					kind: "status",
+					text: "/btw can only be used while a task is running.",
+				});
 				refocusTextarea();
 				return true;
 			}
-			question = result ?? "";
-		}
 
-		if (!question) {
+			const question = getSlashCommandArguments(invocation?.text, "btw");
+			if (!question) {
+				session.appendEntry({
+					kind: "status",
+					text: lastPromptRef.current
+						? `Last side question: ${lastPromptRef.current}. Use /btw <question> to ask another.`
+						: "Usage: /btw <question>",
+				});
+				refocusTextarea();
+				return true;
+			}
+
+			lastPromptRef.current = question;
+			session.appendEntry({
+				kind: "status",
+				text: `Side question: ${question}`,
+			});
+			try {
+				await submitText(question, "steer");
+			} catch (error) {
+				session.appendEntry({
+					kind: "error",
+					text: `Failed to steer task: ${error instanceof Error ? error.message : String(error)}`,
+				});
+			}
+
 			refocusTextarea();
 			return true;
-		}
+		},
+		[refocusTextarea, session, submitText],
+	);
 
-		session.appendEntry({
-			kind: "status",
-			text: `Steering task: ${question}`,
-		});
-
+	const runLoopTick = useCallback(async (loop: ActiveLoop) => {
+		if (loopTickInFlightRef.current) return;
+		if (activeLoopRef.current?.id !== loop.id) return;
+		loopTickInFlightRef.current = true;
+		const currentSession = sessionRef.current;
 		try {
-			await onSubmit(question, session.uiMode, "steer");
+			await submitTextRef.current(
+				loop.prompt,
+				currentSession.isRunning ? "steer" : undefined,
+			);
 		} catch (error) {
-			session.appendEntry({
+			currentSession.appendEntry({
 				kind: "error",
-				text: `Failed to steer task: ${error instanceof Error ? error.message : String(error)}`,
+				text: `Loop prompt failed: ${error instanceof Error ? error.message : String(error)}`,
 			});
+		} finally {
+			loopTickInFlightRef.current = false;
+			if (loop.selfPaced && activeLoopRef.current?.id === loop.id) {
+				// A steered tick resolves as soon as it is queued. Wait for the
+				// turn to finish before scheduling the next self-paced tick so
+				// the loop follows the agent's pace instead of spinning.
+				const waitForIdle = () => {
+					if (activeLoopRef.current?.id !== loop.id) return;
+					if (sessionRef.current.isRunning) {
+						const retry = setTimeout(
+							waitForIdle,
+							SELF_PACED_MIN_DELAY_MS,
+						);
+						retry.unref?.();
+						activeLoopRef.current = { ...loop, timer: retry };
+						return;
+					}
+					scheduleSelfPacedRef.current(loop, SELF_PACED_MIN_DELAY_MS);
+				};
+				waitForIdle();
+			}
 		}
+	}, []);
 
-		refocusTextarea();
-		return true;
-	}, [dialog, onSubmit, refocusTextarea, session]);
+	const scheduleSelfPaced = useCallback(
+		(loop: ActiveLoop, delay: number) => {
+			if (activeLoopRef.current?.id !== loop.id) return;
+			const timer = setTimeout(() => {
+				void runLoopTick(loop);
+			}, delay);
+			timer.unref?.();
+			activeLoopRef.current = { ...loop, timer };
+		},
+		[runLoopTick],
+	);
+	scheduleSelfPacedRef.current = scheduleSelfPaced;
+
+	const runLoop = useCallback(
+		async (invocation?: LocalSlashCommandInvocation, commandName = "loop") => {
+			const args = getSlashCommandArguments(invocation?.text, commandName);
+			const control = parseLoopControl(args);
+
+			if (control === "stop") {
+				session.appendEntry({
+					kind: "status",
+					text: stopLoop()
+						? "Loop stopped."
+						: "No active loop in this session.",
+				});
+				refocusTextarea();
+				return true;
+			}
+
+			if (control === "status") {
+				const active = activeLoopRef.current;
+				session.appendEntry({
+					kind: "status",
+					text: active
+						? `Active loop: ${active.selfPaced ? "self-paced" : `every ${active.intervalLabel}`} — "${active.prompt}". Use /loop stop to cancel.`
+						: "No active loop in this session.",
+				});
+				refocusTextarea();
+				return true;
+			}
+
+			let fallbackPrompt = lastPromptRef.current || DEFAULT_LOOP_PROMPT;
+			try {
+				const custom = (
+					await readFile(join(workspaceRoot, "loop.md"), "utf8")
+				).trim();
+				if (custom) fallbackPrompt = custom;
+			} catch {
+				// loop.md is optional.
+			}
+
+			const parsed = parseLoopArguments(args, fallbackPrompt);
+			if (!parsed.ok) {
+				session.appendEntry({ kind: "status", text: parsed.error });
+				refocusTextarea();
+				return true;
+			}
+
+			stopLoop();
+			lastPromptRef.current = parsed.loop.prompt;
+			const loop: ActiveLoop = {
+				id: ++loopSequenceRef.current,
+				prompt: parsed.loop.prompt,
+				intervalLabel: parsed.loop.intervalLabel,
+				selfPaced: parsed.loop.intervalMs === null,
+			};
+
+			if (parsed.loop.intervalMs === null) {
+				activeLoopRef.current = loop;
+				void runLoopTick(loop);
+			} else {
+				const timer = setInterval(() => {
+					void runLoopTick(loop);
+				}, parsed.loop.intervalMs);
+				timer.unref?.();
+				activeLoopRef.current = { ...loop, timer };
+			}
+
+			session.appendEntry({
+				kind: "status",
+				text: `Loop started: ${loop.selfPaced ? SELF_PACED_LOOP_LABEL : `every ${loop.intervalLabel}`} — "${loop.prompt}". Use /loop stop to cancel.`,
+			});
+			refocusTextarea();
+			return true;
+		},
+		[refocusTextarea, runLoopTick, session, workspaceRoot],
+	);
+
+	const getActiveGoal = useCallback(() => activeGoalRef.current, []);
+
+	const clearActiveGoal = useCallback(
+		(reason?: "achieved") => {
+			const goal = activeGoalRef.current;
+			if (goal) lastGoalRef.current = goal;
+			activeGoalRef.current = null;
+			writeSessionGoal(workspaceRoot, null);
+			session.appendEntry({
+				kind: "status",
+				text:
+					reason === "achieved" && goal
+						? `Goal achieved: ${goal}. Goal cleared.`
+						: "Goal cleared.",
+			});
+		},
+		[session, workspaceRoot],
+	);
+
+	const runGoal = useCallback(
+		(invocation?: LocalSlashCommandInvocation) => {
+			const parsed = parseGoalArguments(
+				getSlashCommandArguments(invocation?.text, "goal"),
+			);
+
+			if (parsed.kind === "show") {
+				session.appendEntry({
+					kind: "status",
+					text: activeGoalRef.current
+						? `Active goal: ${activeGoalRef.current}. Use /goal clear to cancel.`
+						: lastGoalRef.current
+							? `Last goal: ${lastGoalRef.current}. Set a new one with /goal <condition>.`
+							: "No active goal. Set one with /goal <condition>.",
+				});
+			} else if (parsed.kind === "clear") {
+				clearActiveGoal();
+			} else {
+				activeGoalRef.current = parsed.goal;
+				lastGoalRef.current = parsed.goal;
+				writeSessionGoal(workspaceRoot, parsed.goal);
+				session.appendEntry({
+					kind: "status",
+					text: `Goal set: ${parsed.goal}. It is included with every prompt until cleared; treat it as achieved when the condition is met.`,
+				});
+			}
+
+			refocusTextarea();
+			return true;
+		},
+		[clearActiveGoal, refocusTextarea, session, workspaceRoot],
+	);
+
+	const clearConversationWithGoal = useCallback(async () => {
+		activeGoalRef.current = null;
+		writeSessionGoal(workspaceRoot, null);
+		await onClearConversation();
+	}, [onClearConversation, workspaceRoot]);
 
 	const handleSlashCommand = useCallback(
 		(command: string, invocation?: LocalSlashCommandInvocation) => {
@@ -276,6 +516,12 @@ export function useLocalCommandActions(input: {
 			}
 			if (resolved.name === "btw") {
 				return runBtw(invocation);
+			}
+			if (resolved.name === "loop" || resolved.name === "proactive") {
+				return runLoop(invocation, resolved.name);
+			}
+			if (resolved.name === "goal") {
+				return runGoal(invocation);
 			}
 			return runLocalSlashCommandAction({
 				name: resolved.name,
@@ -290,7 +536,7 @@ export function useLocalCommandActions(input: {
 				runCompact,
 				runFork,
 				runUndo: onUndo,
-				clearConversation: onClearConversation,
+				clearConversation: clearConversationWithGoal,
 				openHelp,
 				openHistory,
 				exitCline: onExit,
@@ -298,7 +544,7 @@ export function useLocalCommandActions(input: {
 			});
 		},
 		[
-			onClearConversation,
+			clearConversationWithGoal,
 			onExit,
 			onUndo,
 			openAccount,
@@ -312,11 +558,13 @@ export function useLocalCommandActions(input: {
 			runCompact,
 			runFork,
 			runBtw,
+			runLoop,
+			runGoal,
 			session.isRunning,
 			slashCommandRegistry,
 			onSubmit,
 		],
 	);
 
-	return { handleSlashCommand, openHistory };
+	return { handleSlashCommand, openHistory, getActiveGoal, clearActiveGoal };
 }

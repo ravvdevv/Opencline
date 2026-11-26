@@ -11,6 +11,11 @@ import type { GeneratedMedia } from "@cline/shared";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
+import { formatGoalPrompt } from "../tui/utils/goal-command";
+import {
+	readSessionGoal,
+	writeSessionGoal,
+} from "../utils/session-goal-store";
 import {
 	type ChatCommandHost,
 	type ChatCommandState,
@@ -19,6 +24,10 @@ import {
 	maybeHandleChatCommand,
 	normalizeCommandName,
 } from "../utils/chat-commands";
+import {
+	clearGoalIfAchieved,
+	maybeHandleConnectorCompanionCommand,
+} from "./companion-commands";
 import { authorizeConnectorEvent, dispatchConnectorHook } from "./hooks";
 import {
 	createConnectorRuntimeTurnStream,
@@ -298,6 +307,35 @@ function isConnectorCommandAddressedToThisBot(
 	return commandToken
 		? isCommandAddressedToBot(commandToken, botUserName)
 		: false;
+}
+
+function companionThreadKey(input: {
+	bindingsPath: string;
+	thread: { id: string };
+}): string {
+	return `${input.bindingsPath}:${input.thread.id}`;
+}
+
+function connectorGoalKey(input: {
+	bindingsPath: string;
+	thread: { id: string };
+}): string {
+	return `connector:${companionThreadKey(input)}`;
+}
+
+function findActiveTurnEntry<TState extends ConnectorThreadState>(
+	input: ConnectorUserTurnInput<TState>,
+	turnKey: string,
+	currentState: TState,
+): readonly [string, ActiveConnectorTurn] | undefined {
+	const keyed = input.activeTurns?.get(turnKey);
+	if (keyed) return [turnKey, keyed];
+	if (!input.activeTurns || !currentState.sessionId?.trim()) return undefined;
+	return Array.from(input.activeTurns.entries()).find(
+		([, turn]) =>
+			turn.sessionId === currentState.sessionId?.trim() &&
+			turn.threadId === input.thread.id,
+	);
 }
 
 function participantMatchesOwner(
@@ -599,6 +637,71 @@ export async function handleConnectorUserTurn<
 		});
 	}
 	await input.onMessageReceived?.(receivedDetails);
+
+	const companionKey = companionThreadKey(input);
+	const goalKey = connectorGoalKey(input);
+	const companionGoal = {
+		getGoal: () => readSessionGoal(goalKey),
+		setGoal: (goal: string | null) => writeSessionGoal(goalKey, goal),
+	};
+	const companionSubmit = async (prompt: string) => {
+		const state = await loadThreadState(
+			input.thread,
+			input.bindingsPath,
+			input.baseStartRequest,
+		);
+		const effectiveState = applyForcedToolDisable(state, input.forceDisableTools);
+		const companionStartRequest = buildThreadStartRequest(
+			input.baseStartRequest,
+			effectiveState,
+		);
+		const active = findActiveTurnEntry(input, turnKey, state);
+		const goalWrapped = formatGoalPrompt(readSessionGoal(goalKey), prompt);
+		if (!active?.[1].sessionId?.trim()) {
+			await runConnectorRuntimeTurnWithRecovery({
+				input,
+				runtimeInput: goalWrapped,
+				turnKey,
+				currentState: state,
+			});
+			return;
+		}
+		const { prompt: builtPrompt, userImages, userFiles } =
+			await buildUserInputMessage(
+				goalWrapped,
+				input.userInstructionService,
+				{ mode: companionStartRequest.mode },
+			);
+		await input.client.sendRuntimeSession(
+			active[1].sessionId,
+			{
+				config: companionStartRequest,
+				prompt: builtPrompt,
+				attachments: buildAttachments({ userImages, userFiles }),
+				delivery: "steer",
+			},
+			{ timeoutMs: null },
+		);
+	};
+
+	if (
+		await maybeHandleConnectorCompanionCommand({
+			key: companionKey,
+			text: resolvedInput,
+			botUserName: input.botUserName,
+			workspaceRoot:
+				initialState.workspaceRoot || input.baseStartRequest.workspaceRoot,
+			reply: async (message) => {
+				await postConnectorText(input.thread, input.transport, message);
+			},
+			isRunning: () =>
+				!!findActiveTurnEntry(input, turnKey, initialState)?.[1].sessionId?.trim(),
+			submit: companionSubmit,
+			...companionGoal,
+		})
+	) {
+		return;
+	}
 
 	const toolLockCommand = commandName?.match(/^\/(tools|yolo)$/i);
 	if (input.forceDisableTools && toolLockCommand) {
@@ -1011,20 +1114,15 @@ export async function handleConnectorUserTurn<
 		input.baseStartRequest,
 		effectiveCurrentState,
 	);
-	const keyedActiveTurn = input.activeTurns?.get(turnKey);
-	const activeTurnEntry = keyedActiveTurn
-		? ([turnKey, keyedActiveTurn] as const)
-		: input.activeTurns && currentState.sessionId?.trim()
-			? Array.from(input.activeTurns.entries()).find(
-					([, turn]) =>
-						turn.sessionId === currentState.sessionId?.trim() &&
-						turn.threadId === input.thread.id,
-				)
-			: undefined;
+	const goalWrappedInput = formatGoalPrompt(
+		readSessionGoal(goalKey),
+		runtimeInput,
+	);
+	const activeTurnEntry = findActiveTurnEntry(input, turnKey, currentState);
 	if (activeTurnEntry?.[1].sessionId?.trim()) {
 		const [activeTurnKey, activeTurn] = activeTurnEntry;
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
-			runtimeInput,
+			goalWrappedInput,
 			input.userInstructionService,
 			{ mode: startRequest.mode },
 		);
@@ -1062,7 +1160,7 @@ export async function handleConnectorUserTurn<
 			await enqueueTurn(() =>
 				runConnectorRuntimeTurnWithRecovery({
 					input,
-					runtimeInput,
+					runtimeInput: goalWrappedInput,
 					turnKey,
 					staleSessionId: activeTurn.sessionId,
 				}),
@@ -1078,7 +1176,7 @@ export async function handleConnectorUserTurn<
 
 	await runConnectorRuntimeTurnWithRecovery({
 		input,
-		runtimeInput,
+		runtimeInput: goalWrappedInput,
 		turnKey,
 		currentState,
 	});
@@ -1271,6 +1369,14 @@ async function runConnectorRuntimeTurn<
 					generatedMedia.push(media);
 				},
 				onCompleted: async (result) => {
+					const completedGoalKey = connectorGoalKey(input);
+					clearGoalIfAchieved(
+						{
+							getGoal: () => readSessionGoal(completedGoalKey),
+							setGoal: (goal) => writeSessionGoal(completedGoalKey, goal),
+						},
+						result.text,
+					);
 					await input.onReplyCompleted?.({
 						sessionId,
 						threadId: input.thread.id,

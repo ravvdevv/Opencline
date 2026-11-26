@@ -26,6 +26,30 @@ test.describe("cline interactive basics", () => {
 		});
 	});
 
+	test("shows /btw in the slash menu", async ({ terminal }) => {
+		await waitForChatReady(terminal);
+		terminal.write("/btw");
+		await expectVisible(terminal, ["/btw", "side question"], {
+			timeout: 10_000,
+		});
+	});
+
+	test("shows /loop in the slash menu", async ({ terminal }) => {
+		await waitForChatReady(terminal);
+		terminal.write("/loop");
+		await expectVisible(terminal, ["/loop", "Repeat a prompt"], {
+			timeout: 10_000,
+		});
+	});
+
+	test("shows /goal in the slash menu", async ({ terminal }) => {
+		await waitForChatReady(terminal);
+		terminal.write("/goal");
+		await expectVisible(terminal, ["/goal", "Keep working toward a goal"], {
+			timeout: 10_000,
+		});
+	});
+
 	test("opens the command palette with Ctrl+P", async ({ terminal }) => {
 		await waitForChatReady(terminal);
 		terminal.write("\x10");
