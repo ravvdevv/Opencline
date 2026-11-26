@@ -13,7 +13,8 @@ export type CommandPaletteAction =
 	| "clear"
 	| "history"
 	| "help"
-	| "quit";
+	| "quit"
+	| "btw";
 
 export interface CommandPaletteResult {
 	kind: "action";
@@ -142,6 +143,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+Q",
 		description: "Close the interactive CLI",
 		keywords: ["quit", "exit"],
+	},
+	{
+		action: "btw",
+		label: "Search the Web",
+		shortcut: "Opt+B",
+		description: "Search the web with a query (by the way...)",
+		keywords: ["btw", "search", "web", "query"],
 	},
 ];
 

@@ -189,6 +189,7 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{ kind: "entry", id: "c-quit", key: "/quit", desc: "Exit Cline" },
 	{ kind: "entry", id: "c-help", key: "/help", desc: "Show this help" },
+	{ kind: "entry", id: "c-btw", key: "/btw", desc: "Search the web (by the way...)" },
 
 	{ kind: "spacer", id: "s2" },
 	{ kind: "heading", id: "h-mentions", text: "Mentions" },

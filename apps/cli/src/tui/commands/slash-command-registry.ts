@@ -25,7 +25,8 @@ export type LocalSlashCommandName =
 	| "clear"
 	| "history"
 	| "quit"
-	| "help";
+	| "help"
+	| "btw";
 
 export interface SlashCommandRegistryEntry {
 	name: string;
@@ -112,6 +113,10 @@ const TUI_LOCAL_COMMANDS: Array<{
 		name: "quit",
 		description: "Exit Cline",
 	},
+	{
+		name: "btw",
+		description: "Search the web (by the way...)",
+	},
 ];
 
 const SYSTEM_COMMAND_ORDER = [
@@ -130,6 +135,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"history",
 	"help",
 	"quit",
+	"btw",
 ] satisfies ReadonlyArray<LocalSlashCommandName | "team">;
 
 const SYSTEM_COMMAND_PRIORITY = new Map<string, number>(
