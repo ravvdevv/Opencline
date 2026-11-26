@@ -13,7 +13,8 @@ export type CommandPaletteAction =
 	| "clear"
 	| "history"
 	| "help"
-	| "quit";
+	| "quit"
+	| "btw";
 
 export interface CommandPaletteResult {
 	kind: "action";
@@ -142,6 +143,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+Q",
 		description: "Close the interactive CLI",
 		keywords: ["quit", "exit"],
+	},
+	{
+		action: "btw",
+		label: "Ask About Code (By The Way)",
+		shortcut: "Opt+B",
+		description: "Pause the current task and ask a clarifying question about the code",
+		keywords: ["btw", "question", "clarify", "ask"],
 	},
 ];
 

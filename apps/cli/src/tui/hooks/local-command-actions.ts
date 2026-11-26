@@ -1,5 +1,6 @@
 import type { LocalSlashCommandInvocation } from "../utils/skill-command-input";
 import type { OpenConfigOptions } from "./use-config-panel";
+import type { TuiProps } from "../types";
 
 export interface LocalSlashCommandActionInput {
 	name: string;
@@ -18,6 +19,7 @@ export interface LocalSlashCommandActionInput {
 	openHelp: () => void;
 	openHistory: () => void;
 	exitCline: () => void;
+	onSubmit: TuiProps["onSubmit"];
 }
 
 export function runLocalSlashCommandAction(

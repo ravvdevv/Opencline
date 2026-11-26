@@ -7,6 +7,7 @@ import { resolveSlashCommand } from "../commands/slash-command-registry";
 import { ForkConfirmContent } from "../components/dialogs/fork-confirm";
 import { HelpDialogContent } from "../components/dialogs/help-dialog";
 import { withLoadingDialog } from "../components/dialogs/loading-dialog";
+import { BtwInputContent } from "../components/dialogs/btw-input";
 import { useSession } from "../contexts/session-context";
 import type { AppView, TuiProps } from "../types";
 import { hydrateSessionMessages } from "../utils/hydrate-messages";
@@ -34,6 +35,7 @@ export function useLocalCommandActions(input: {
 	onFork: TuiProps["onFork"];
 	onUndo: () => Promise<void>;
 	onExit: TuiProps["onExit"];
+	onSubmit: TuiProps["onSubmit"];
 }) {
 	const dialog = useDialog();
 	const session = useSession();
@@ -57,6 +59,7 @@ export function useLocalCommandActions(input: {
 		onFork,
 		onUndo,
 		onExit,
+		onSubmit,
 	} = input;
 
 	const openHistory = useCallback(async () => {
@@ -84,9 +87,6 @@ export function useLocalCommandActions(input: {
 						});
 					} else {
 						session.clearEntries();
-						// replaceEntries rather than appendEntry: appendEntry
-						// stamps unstamped entries with the CURRENT mode, which
-						// would lock hydrated history to the resume-time accent.
 						session.replaceEntries(entries);
 						if (typeof result.currentContextSize === "number") {
 							session.setLastTotalTokens(result.currentContextSize);
@@ -138,11 +138,11 @@ export function useLocalCommandActions(input: {
 			session.updateLastEntry((entry) =>
 				entry.kind === "compaction" && entry.status === "started"
 					? {
-							...entry,
-							status: result.compacted ? "completed" : "skipped",
-							messagesBefore: result.messagesBefore,
-							messagesAfter:
-								result.workingContextMessagesAfter ?? result.messagesAfter,
+						...entry,
+						status: result.compacted ? "completed" : "skipped",
+						messagesBefore: result.messagesBefore,
+						messagesAfter:
+							result.workingContextMessagesAfter ?? result.messagesAfter,
 						}
 					: entry,
 			);
@@ -214,11 +214,68 @@ export function useLocalCommandActions(input: {
 		}
 	}, [canForkSession, dialog, onFork, refocusTextarea, session]);
 
+	const runBtw = useCallback(async (invocation?: LocalSlashCommandInvocation) => {
+		if (!session.isRunning) {
+			session.appendEntry({
+				kind: "status",
+				text: "/btw can only be used while a task is running.",
+			});
+			refocusTextarea();
+			return true;
+		}
+
+		let question = "";
+		if (invocation) {
+			const fullText = invocation.text.trim();
+			const match = fullText.match(/^\/btw\s+(.*)$/i);
+			question = match ? match[1].trim() : "";
+		}
+
+		if (!question) {
+			const result = await dialog.choice<string | null>({
+				size: "medium",
+				content: (ctx: ChoiceContext<string | null>) => (
+					<BtwInputContent {...ctx} placeholder="Enter your question about the code..." />
+				),
+			});
+			if (result === null) {
+				refocusTextarea();
+				return true;
+			}
+			question = result ?? "";
+		}
+
+		if (!question) {
+			refocusTextarea();
+			return true;
+		}
+
+		session.appendEntry({
+			kind: "status",
+			text: `Steering task: ${question}`,
+		});
+
+		try {
+			await onSubmit(question, session.uiMode, "steer");
+		} catch (error) {
+			session.appendEntry({
+				kind: "error",
+				text: `Failed to steer task: ${error instanceof Error ? error.message : String(error)}`,
+			});
+		}
+
+		refocusTextarea();
+		return true;
+	}, [dialog, onSubmit, refocusTextarea, session]);
+
 	const handleSlashCommand = useCallback(
 		(command: string, invocation?: LocalSlashCommandInvocation) => {
 			const resolved = resolveSlashCommand(slashCommandRegistry, command);
 			if (!resolved || resolved.execution !== "local") {
 				return false;
+			}
+			if (resolved.name === "btw") {
+				return runBtw(invocation);
 			}
 			return runLocalSlashCommandAction({
 				name: resolved.name,
@@ -237,6 +294,7 @@ export function useLocalCommandActions(input: {
 				openHelp,
 				openHistory,
 				exitCline: onExit,
+				onSubmit,
 			});
 		},
 		[
@@ -253,8 +311,10 @@ export function useLocalCommandActions(input: {
 			openThemePicker,
 			runCompact,
 			runFork,
+			runBtw,
 			session.isRunning,
 			slashCommandRegistry,
+			onSubmit,
 		],
 	);
 

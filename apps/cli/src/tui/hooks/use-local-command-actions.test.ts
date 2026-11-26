@@ -23,6 +23,7 @@ function makeActions(
 		openHelp: vi.fn(),
 		openHistory: vi.fn(),
 		exitCline: vi.fn(),
+		onSubmit: vi.fn(),
 		...overrides,
 	};
 }
