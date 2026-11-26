@@ -118,6 +118,34 @@ function run(
 }
 
 describe("createRetryEmptyResponseMiddleware", () => {
+	it("retries transient request-initiation failures before a stream exists", async () => {
+		const doStream = vi
+			.fn()
+			.mockRejectedValueOnce(new TypeError("fetch failed"))
+			.mockResolvedValueOnce(streamOf(textParts));
+
+		const parts = await collect(await run(doStream));
+
+		expect(doStream).toHaveBeenCalledTimes(2);
+		expect(parts.some((p) => p.type === "text-delta" && p.delta === "hello")).toBe(true);
+	});
+
+	it("does not retry non-network request-initiation errors", async () => {
+		const failure = new Error("401 Unauthorized");
+		const doStream = vi.fn().mockRejectedValue(failure);
+
+		await expect(run(doStream)).rejects.toBe(failure);
+		expect(doStream).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not retry request-initiation failures after cancellation", async () => {
+		const abortController = new AbortController();
+		abortController.abort(new Error("user cancelled"));
+		const doStream = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+
+		await expect(run(doStream, {}, abortController.signal)).rejects.toThrow("fetch failed");
+		expect(doStream).toHaveBeenCalledTimes(1);
+	});
 	it("streams a non-empty response through without retrying", async () => {
 		const doStream = vi.fn(async () => streamOf(textParts));
 		const parts = await collect(await run(doStream));
